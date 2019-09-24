@@ -1,0 +1,9 @@
+name: crails
+version: 0.1.0
+
+authors:
+  - Oleg Orlov <orelcokolov@gmail.com>
+
+crystal: 0.31.0
+
+license: MIT
