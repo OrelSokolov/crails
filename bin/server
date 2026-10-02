@@ -1,0 +1,6 @@
+#!/bin/sh
+# CRails demo app server: ./bin/server [-p PORT] [-e ENV]
+# (`rake build` first, or it rebuilds via bin/crails)
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT/hello_world/hello"
+exec bin/crails server "$@"

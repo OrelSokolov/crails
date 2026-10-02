@@ -1,0 +1,5 @@
+# Framework shards come from lib/ symlinks (see bin/crails);
+# add your own dependencies here.
+name: hello
+version: 0.1.0
+crystal: ">= 1.21.0"

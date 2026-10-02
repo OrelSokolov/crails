@@ -1,0 +1,72 @@
+# action_cable.cr — порт ActionCable
+
+> ⚠️ EXPERIMENTAL FRAMEWORK, DO NOT USE IN PRODUCTION YET.
+
+Неймспейс: `ActionCable` — 1:1. Оценка: ~90%. На Crystal ложится
+естественнее, чем на Ruby: fiber-per-connection поверх `HTTP::WebSocket`
+(stdlib) вместо nio4r + thread pool.
+
+## API 1:1
+
+### Connection (`app/channels/application_cable/connection.cr`)
+- `class Connection < ActionCable::Connection::Base`
+- `identified_by :current_user` (N раз) — макрос: геттер/сеттер + регистр
+- `def connect` / `def disconnect`; `reject_unauthorized_connection`
+- `cookies` (через cookie_jar запроса на апгрейд) — аутентификация
+  как в Rails
+- `before_command/after_command/around_command`
+
+### Channel (`< ApplicationCable::Channel < ActionCable::Channel::Base`)
+- `def subscribed` / `def unsubscribed` (+ `before_subscribe/
+  after_subscribe/before_unsubscribe/after_unsubscribe` с `if:/unless:`)
+- `stream_from "room_#{id}" do |msg| end` (+ coder:), `stream_for @post`,
+  `stop_stream_from/stop_stream_for/stop_all_streams`,
+  `stream_or_reject_for`, `transmit(data, via:)`, `reject`, `params`,
+  `connection`
+- `periodically :transmit_progress, every: 5.seconds` / `periodically
+  every: 3.minutes do ... end`
+- Публичный метод канала = RPC-экшен для клиента: в Crystal —
+  макрос-таблица диспетчеризации (разработчик пишет `def speak(data)` —
+  работает так же, как в Rails)
+- Class: `CommentsChannel.broadcast_to(@post, message)`,
+  `broadcasting_for(target)`
+
+### Сервер
+- `ActionCable.server.broadcast(name, message)`,
+  `ActionCable.server.remote_connections.where(current_user: u).disconnect`
+- Монтирование на `/cable` (`mount_path`)
+- Протокол: тот же JSON-протокол Rails (`command: subscribe/message`,
+  ответы `welcome/subscription_confirmation/ping/disconnect`) —
+  JS-клиент @rails/actioncable работает без изменений
+
+### Config
+`config/cable.yml`: `adapter:` async (in-process) / postgresql
+(LISTEN/NOTIFY) / redis (pubsub) + `channel_prefix`;
+`config.action_cable.*`: mount_path, allowed_request_origins,
+worker_pool_size (fiber-пул), logger, log_tags.
+
+## Реализация
+
+- WebSocket-апгрейд + fiber-per-connection; сердце сервера — event loop
+  не нужен, блокирующий IO на fiber'ах дёшев.
+- Pubsub-адаптеры: Async (in-process канал), PG LISTEN/NOTIFY (crystal-pg),
+  Redis (кристаллический redis-клиент). Протокол адаптера — как в Rails.
+- Remote disconnect: внутренние per-connection каналы, как в Rails.
+- Identifier'ы → per-connection fiber state.
+
+## Фазы
+
+- P0: connection + channel DSL, stream_from/transmit/reject, async-адаптер,
+  JSON-протокол (совместимость с @rails/actioncable).
+- P1: PG/Redis pubsub (кросс-процессность), broadcast_to/stream_for,
+  identified_by полный, periodically, remote disconnect.
+- P2: command-коллбэки, статистика, health-check.
+
+## Готово, когда
+
+два браузера с официальным `@rails/actioncable` JS-клиентом подключаются
+к `/cable`, состоят в канале и получают broadcast'ы друг друга.
+
+## Зависимости
+
+active_support.cr, railties.cr (HTTP-сервер), crystal-pg / redis.

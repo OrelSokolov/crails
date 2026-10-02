@@ -1,0 +1,15 @@
+name: railties_cr
+version: 0.1.0
+crystal: ">= 1.21.0"
+dependencies:
+  active_support_cr:
+    path: ../active_support.cr
+  action_view_cr:
+    path: ../action_view.cr
+  action_pack_cr:
+    path: ../action_pack.cr
+  icr:
+    github: OrelSokolov/icr.cr
+targets:
+  crails:
+    main: src/crails_cli.cr

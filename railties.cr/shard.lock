@@ -1,0 +1,18 @@
+version: 2.0
+shards:
+  action_pack_cr:
+    path: ../action_pack.cr
+    version: 0.1.0
+
+  action_view_cr:
+    path: ../action_view.cr
+    version: 0.1.0
+
+  active_support_cr:
+    path: ../active_support.cr
+    version: 0.1.0
+
+  icr:
+    git: https://github.com/orelsokolov/icr.cr.git
+    version: 1.2.0+git.commit.6121e34da57ba946ea0feaacb52d005972e6cae5
+

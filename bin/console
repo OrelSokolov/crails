@@ -1,0 +1,6 @@
+#!/bin/sh
+# CRails console (rails console analog): ./bin/console [-e ENV]
+# Reads config/database.yml automatically; DATABASE_URL overrides it.
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT/hello_world/hello"
+exec bin/crails console "$@"

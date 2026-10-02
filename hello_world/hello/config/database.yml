@@ -1,0 +1,22 @@
+# Picked up automatically by `crails console` (DATABASE_URL overrides).
+# host starting with "/" is a unix socket directory.
+#
+# Демо hello использует тестовую базу с Post/Comment.
+# Для datalake: database: data_lake_development
+development:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_ar_test
+
+test:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_ar_test
+
+production:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: hello_production
