@@ -43,7 +43,7 @@
 | Папка | Порт | Статус |
 |---|---|---|
 | `active_support.cr/` | ActiveSupport | **Iteration 1 ✅** core_ext P0 + Duration + дата-математика + Concern/delegate/Notifications + Cache + I18n + NumberHelper (226 спеков, оракул 1:1 с гемом 8.1.4) |
-| `active_record.cr/` | ActiveRecord | read-срез (datalake 1:1, 29 спеков) |
+| `active_record.cr/` | ActiveRecord | **Iteration 2 ✅** CRUD-запись + dirty + валидации + коллбэки + ассоциации + миграции + `crails db:*` (108 спеков; оракулы 1:1 с гемом 8.1.4: 78 кейсов записи + дампы схемы миграций) |
 | `action_pack.cr/` | ActionPack (контроллеры, роутинг, params) | Iteration 0 slice (роутер, Base, render+layout) |
 | `action_view.cr/` | ActionView (хэлперы, ECR, форм-билдер) | Iteration 0 slice (h/html_escape) |
 | `action_mailer.cr/` | ActionMailer | план |
@@ -78,9 +78,8 @@ rake spec       # все тест-сьюты шардов
 RSS 16 MB против 110 MB). Приложение: `hello_world/hello/` (сгенерировано
 `crails new`, пересоздаётся с нуля за ~2 s компиляции).
 
-Дальше — `PLAN.md` в корне: Iteration 1 ✅ закрыта (2026-10-02), теперь
-Iteration 2 — active_record.cr (запись: CRUD, валидации, ассоциации,
-миграции) и остальные шарды.
+Дальше — `PLAN.md` в корне: Iterations 0–2 ✅ закрыты (2026-10-02),
+теперь Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур).
 
 ## License
 

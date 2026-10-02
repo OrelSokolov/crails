@@ -9,6 +9,7 @@ module CRails
       when "console", "c" then Console.run(argv[1..])
       when "routes"    then Build.ensure_app; Build.build; run_app(["routes"])
       when "watch"     then Watch.run(argv[1..])
+      when "db", .starts_with?("db:") then DB.run(argv)
       when "version", "--version", "-v" then puts "CRails #{CRails::VERSION} (Crystal #{Crystal::VERSION})"
       when "about"     then about
       else help
@@ -37,6 +38,9 @@ module CRails
         console, c     Rails-console analog on icr.cr (loads app + DB)
         routes         Build (if needed) and list routes
         watch          Rebuild + restart on source changes (dev loop)
+        db:migrate     Run pending migrations (db/migrate/*.cr)
+        db:rollback    Roll back the last migration (STEP=n)
+        db:schema:dump Refresh db/schema.yml
         version        Print versions
         about          Print framework info
       TEXT
@@ -52,3 +56,4 @@ require "./build"
 require "./server"
 require "./watch"
 require "./console_cmd"
+require "./db_tasks"

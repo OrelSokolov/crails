@@ -32,13 +32,19 @@ stdlib); String→Symbol в рантайме невозможен (symbolize_key
 - [x] `Concern`, `delegate`, `Notifications`
 - [x] `Cache` (memory+file), I18n (yml), `NumberHelper`
 
-### Iteration 2 — active_record.cr 🔄 (read-срез готов: кодоген атрибутов,
-Relation-чтение, подключение — 29 спеков на реальной БД)
-- [ ] CRUD-запись: create/save/update/destroy, dirty-tracking
-- [ ] валидации, коллбэки
-- [ ] ассоциации: belongs_to/has_many/has_one (+through, polymorphic)
-- [ ] миграции DSL + `crails db:*` (schema.yml, конвенция `tenant_id`)
-- [ ] bench `100-ar-read` / `101-ar-crud` vs Rails
+### Iteration 2 — active_record.cr ✅ (2026-10-02)
+Тест-first по AGENTS.md: oracle/cases.rb (78 кейсов записи) и
+oracle/migrations.rb (4 нормализованных дампа схемы) сняты с настоящего
+activerecord 8.1.4 → expected.yml / migrations_expected.yml; порт
+воспроизводит их без правок тестов. 108 спеков зелёные. Отклонения:
+`val_numericality_not_int` непереносим (статическая типизация — строка в
+Int-колонку не компилируется); rollback `drop_table` без блока —
+IrreversibleMigration 1:1; `through`/polymorphic-ассоциации — P2.
+- [x] CRUD-запись: create/save/update/destroy, dirty-tracking
+- [x] валидации, коллбэки
+- [x] ассоциации: belongs_to/has_many/has_one (+dependent)
+- [x] миграции DSL + `crails db:migrate/rollback/schema:dump` (schema.yml)
+- [x] bench `100-ar-read` / `101-ar-crud` vs Rails
 
 ### Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур)
 - [ ] layouts/partials/collection-render, `content_for`/`provide`
