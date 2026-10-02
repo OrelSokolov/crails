@@ -16,3 +16,10 @@ hello_world/hello/bin/app
 .DS_Store
 *.swp
 active_support.cr/oracle/errors.log
+
+# --- артефакты спек/бенчей (Iteration 3+) ---
+action_pack.cr/action_pack_cr
+action_view.cr/action_view_cr
+bench/rails_hello/tmp/
+hello_world/hello/tmp/
+*.log

@@ -16,6 +16,10 @@ module ActionController
 
   # Compile-time registry of controller classes (filled by `inherited`).
   REGISTRY = [] of TypeNode
+  # Compile-time registry of before_action filters / rescue handlers
+  # (filled by the `before_action` / `rescue_from` macros).
+  FILTERS = [] of {TypeNode, Symbol, NamedTuple}
+  RESCUERS = [] of {TypeNode, TypeNode, Symbol}
 
   class RoutingError < Exception
   end
@@ -24,10 +28,10 @@ module ActionController
     include ActionView::Helpers
 
     getter context : HTTP::Server::Context
-    getter params : Hash(String, String)
+    getter params : Parameters
 
     def initialize(@context : HTTP::Server::Context)
-      @params = {} of String => String
+      @params = Parameters.new
       @performed = false
     end
 
@@ -39,7 +43,51 @@ module ActionController
       @context.response
     end
 
-    # --- explicit rendering (Iteration 0 slice) ---
+    @cookies : Cookies?
+    @session : Session?
+    @flash : Flash?
+
+    def cookies : Cookies
+      @cookies ||= Cookies.new(@context)
+    end
+
+    def session : Session
+      @session ||= Session.new(cookies)
+    end
+
+    def flash : Flash
+      @flash ||= Flash.new(cookies)
+    end
+
+    # --- filters ------------------------------------------------------
+
+    # before_action :authenticate, only: [:index] / except: / if: / unless:
+    macro before_action(*names, **opts)
+      {% for name in names %}
+        {% ActionController::FILTERS << { @type, name, opts } %}
+      {% end %}
+    end
+
+    macro skip_before_action(*names, **opts)
+      {% for name in names %}
+        {% ActionController::FILTERS << { @type, :"__skip_#{name}", opts } %}
+      {% end %}
+    end
+
+    macro rescue_from(exception, **opts)
+      {% handler = opts[:with] || opts["with"] %}
+      {% raise "rescue_from needs a `with:` handler" unless handler %}
+      {% ActionController::RESCUERS << { @type, exception, handler } %}
+    end
+
+    # --- explicit rendering ---
+
+    def render(json : String, status = 200) : Nil
+      @performed = true
+      response.status_code = status_code(status)
+      response.headers["Content-Type"] = "application/json"
+      response.print json
+    end
 
     def render(plain : String? = nil, html : String? = nil, status = 200) : Nil
       @performed = true
@@ -51,14 +99,63 @@ module ActionController
         response.headers["Content-Type"] = "text/html; charset=utf-8"
         response.print body
       else
-        raise ArgumentError.new("render needs plain: or html: (Iteration 0 slice)")
+        raise ArgumentError.new("render needs plain: or html:")
       end
     end
 
-    def redirect_to(location : String, status = 302) : Nil
+    def head(status) : Nil
+      @performed = true
+      response.status_code = status_code(status)
+    end
+
+    # --- redirection ---------------------------------------------------
+
+    def redirect_to(location : String, status = 302, notice : String? = nil,
+                    alert : String? = nil) : Nil
+      flash["notice"] = notice if notice
+      flash["alert"] = alert if alert
       @performed = true
       response.status_code = status_code(status)
       response.headers["Location"] = location
+    end
+
+    def redirect_back(fallback_location : String, status = 302) : Nil
+      location = request.headers["Referer"]? || fallback_location
+      redirect_to(location, status)
+    end
+
+    # --- respond_to ----------------------------------------------------
+
+    def respond_to(& : RespondToCollector ->) : Nil
+      yield RespondToCollector.new(__request_format)
+    end
+
+    class RespondToCollector
+      def initialize(@format : String)
+      end
+
+      def html(&) : Nil
+        yield if @format == "html"
+      end
+
+      def json(&) : Nil
+        yield if @format == "json"
+      end
+
+      def any(&) : Nil
+        yield
+      end
+    end
+
+    # html unless ?format=json / .json / Accept: application/json
+    private def __request_format : String
+      if (fmt = params[:format]?.try(&.to_s)) && fmt == "json"
+        return "json"
+      end
+      if request.headers["Accept"]?.try(&.includes?("application/json"))
+        return "json"
+      end
+      "html"
     end
 
     private def status_code(status : Int32 | Symbol) : Int32
@@ -84,10 +181,55 @@ module ActionController
     # --- internal machinery (generated/driver code) ---
 
     def __set_params(route_params : Hash(String, String)) : Nil
-      @params.merge!(route_params)
+      raw = {} of String => Parameters::Value
+      route_params.each { |k, v| raw[k] = v }
       query = URI::Params.parse(request.query || "")
       query.each do |key, value|
-        @params[key] = value
+        raw[key] = value
+      end
+      __merge_body_params(raw)
+      @params = Parameters.from(raw)
+    end
+
+    private def __merge_body_params(raw : Hash(String, Parameters::Value)) : Nil
+      case request.headers["Content-Type"]?
+      when .nil? then nil
+      when /json/
+        body = request.body.try(&.gets_to_end) || ""
+        return if body.empty?
+        if (json = JSON.parse(body).as_h?)
+          json.each do |k, v|
+            raw_val = v.raw
+            raw[k] = case raw_val
+            when String then raw_val
+            when Int32  then raw_val
+            when Int64  then raw_val
+            when Float64 then raw_val
+            when Bool   then raw_val
+            when Nil    then raw_val
+            when Array  then raw_val.map { |e| (e.as?(String) || e.to_s).as(Parameters::Scalar) }
+            when Hash   then Parameters.from(raw_val)
+            else             v.to_s
+            end
+          end
+        end
+      when /form-urlencoded/
+        body = request.body.try(&.gets_to_end) || ""
+        URI::Params.parse(body).each do |k, v|
+          if k.includes?('[') && k.ends_with?(']') && (eq = k.index('['))
+            # nested form keys: post[title]=x -> {"post" => {"title" => "x"}}
+            name = k[0...eq]
+            inner_key = k[(eq + 1)...(k.size - 1)]
+            sub = raw[name]?
+            unless sub.is_a?(Parameters)
+              sub = Parameters.new
+              raw[name] = sub
+            end
+            sub.as(Parameters)[inner_key] = v
+          else
+            raw[k] = v
+          end
+        end
       end
     end
 
@@ -104,19 +246,13 @@ module ActionController
     def __default_render(action : String) : Nil
       @performed = true
       content = __render_view(action)
-      body = __layout? ? __render_layout { content } : content
+      body = __layout? ? __render_layout { content.to_s } : content.to_s
       response.headers["Content-Type"] = "text/html; charset=utf-8"
       response.print body
     end
 
     def __layout? : Bool
-      {{ (`(test -f #{env("CRAILS_VIEWS") || "app/views"}/layouts/application.html.ecr && echo yes) || true`) != "" }}
-    end
-
-    def __render_layout(& : -> String) : String
-      io = IO::Memory.new
-      ECR.embed {{ (env("CRAILS_VIEWS") || "app/views") + "/layouts/application.html.ecr" }}, "io"
-      io.to_s
+      {{ (`(test -f #{env("CRAILS_VIEWS") || "app/views"}/layouts/application.html.erb && echo yes) || true`) != "" }}
     end
 
     macro inherited
@@ -139,15 +275,17 @@ macro finished
       class ::{{ t.stringify.id }}
         # Dispatch a routed action: run it, then default-render its
         # template inside the layout unless the action already rendered.
-        def __run_action(action : String) : Nil
+        def __run_action_dispatch(action : String) : Nil
+          __run_before_filters(action)
+          return if @performed
           case action
           {% for m in t.methods %}
-            {% next unless m.args.empty? %}
-            {% next if m.name.stringify.starts_with?("__") %}
-            {% next if m.name.stringify == m.name.stringify.capitalize %}
+            {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
+            {% if is_action %}
           when {{ m.name.stringify }}
             {{ m.name.id }}
             __default_render({{ m.name.stringify }}) unless @performed
+            {% end %}
           {% end %}
           else
             raise ::ActionController::RoutingError.new(
@@ -155,30 +293,119 @@ macro finished
           end
         end
 
-        # Render the action's ECR template with the controller as context
-        # (instance variables, `params`, helpers are visible).
-        def __render_view(action : String) : String
-          io = ::IO::Memory.new
+        # Registered before_action filters for this controller (its own
+        # and inherited ones, minus skip_before_action'd names).
+        def __run_before_filters(action : String) : Nil
+          {% applicable = [] of NamedTuple %}
+          {% for f in ActionController::FILTERS %}
+            {% if f[0] == t || t.ancestors.includes?(f[0]) %}
+              {% unless f[1].stringify.starts_with?("__skip_") %}
+                {% skipped = false %}
+                {% for s in ActionController::FILTERS %}
+                  {% if (s[0] == t || t.ancestors.includes?(s[0])) && s[1].stringify.starts_with?("__skip_") %}
+                    {% if s[1].stringify[7..] == f[1].stringify %}
+                      {% skipped = true %}
+                    {% end %}
+                  {% end %}
+                {% end %}
+                {% applicable << {name: f[1], opts: f[2]} unless skipped %}
+              {% end %}
+            {% end %}
+          {% end %}
+          {% for f in applicable %}
+            {% opts = f[:opts] %}
+            {% cond = "true" %}
+            {% if only = opts[:only] %}
+              {% cond = "[" + only.map { |a| "\"" + a.stringify.gsub(/^:/, "") + "\"" }.join(", ") + "].includes?(action)" %}
+            {% end %}
+            {% if except = opts[:except] %}
+              {% cond = cond + " && ![" + except.map { |a| "\"" + a.stringify.gsub(/^:/, "") + "\"" }.join(", ") + "].includes?(action)" %}
+            {% end %}
+            {% if c = opts[:if] %}
+              {% cond = cond + " && " + c.stringify %}
+            {% end %}
+            {% if c = opts[:unless] %}
+              {% cond = cond + " && !(" + c.stringify + ")" %}
+            {% end %}
+            if {{ cond.id }}
+              {{ f[:name].id }}
+              return if @performed
+            end
+          {% end %}
+          nil
+        end
+
+        # rescue_from handlers for this controller (own + inherited).
+        {% rescue_clauses = [] of String %}
+        {% for r in ActionController::RESCUERS %}
+          {% if r[0] == t || t.ancestors.includes?(r[0]) %}
+            {% rescue_clauses << "rescue ex : " + r[1].stringify + "\n  " + r[2].stringify[1..] + "(ex)" %}
+          {% end %}
+        {% end %}
+        {% unless rescue_clauses.empty? %}
+          def __rescue_with_handlers(&) : Nil
+            begin
+              yield
+            {% for clause in rescue_clauses %}
+              {{ clause.id }}
+            {% end %}
+            end
+          end
+
+          def __run_action(action : String) : Nil
+            __rescue_with_handlers { __run_action_dispatch(action) }
+          end
+        {% else %}
+          def __run_action(action : String) : Nil
+            __run_action_dispatch(action)
+          end
+        {% end %}
+
+        # Render the action's ERB template with the controller as
+        # context (instance variables, `params`, helpers are visible).
+        def __render_view(action : String) : ::ActionView::SafeString
           case action
           {% for m in t.methods %}
-            {% next unless m.args.empty? %}
-            {% next if m.name.stringify.starts_with?("__") %}
-            {% next if m.name.stringify == m.name.stringify.capitalize %}
-            {% path = root + "/" + dir + "/" + m.name.stringify + ".html.ecr" %}
-            {% missing_msg = "Missing template " + path %}
+            {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
+            {% if is_action %}
+              {% path = root + "/" + dir + "/" + m.name.stringify + ".html.erb" %}
+              {% missing_msg = "Missing template " + path %}
           when {{ m.name.stringify }}
             {% if (`(test -f #{path} && echo yes) || true`) != "" %}
-              ::ECR.embed {{ path }}, "io"
+              __av_tpl_{{ m.name.id }}
             {% else %}
               raise ::ActionController::RoutingError.new({{ missing_msg }})
+            {% end %}
             {% end %}
           {% end %}
           else
             raise ::ActionController::RoutingError.new(
               "No template for #{action} (#{self.class})")
           end
-          io.to_s
         end
+
+        {% for m in t.methods %}
+          {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
+          {% if is_action %}
+            {% path = root + "/" + dir + "/" + m.name.stringify + ".html.erb" %}
+            {% if (`(test -f #{path} && echo yes) || true`) != "" %}
+              compile_template "__av_tpl_{{ m.name.id }}", {{ path }}
+            {% end %}
+          {% end %}
+        {% end %}
+
+        {% layout_path = root + "/layouts/application.html.erb" %}
+        {% if (`(test -f #{layout_path} && echo yes) || true`) != "" %}
+          compile_layout "__av_layout", {{ layout_path }}
+
+          def __render_layout(& : -> String) : String
+            __av_layout { yield }.to_s
+          end
+        {% else %}
+          def __render_layout(& : -> String) : String
+            yield
+          end
+        {% end %}
       end
     {% end %}
   {% end %}

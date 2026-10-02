@@ -1,0 +1,113 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(160deg, #f4f8fb 0%, #eaf1f6 55%, #dde9f1 100%);
+    color: #17263a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .page { max-width: 720px; width: 100%; text-align: center; }
+  .logo { margin-bottom: 24px; }
+  h1 {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    letter-spacing: -0.03em;
+    color: #1872b3;
+  }
+  .tagline {
+    margin: 12px 0 36px;
+    font-size: 1.1rem;
+    color: #52677f;
+  }
+  .cards {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 36px;
+  }
+  .card {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(24, 114, 179, 0.18);
+    border-radius: 14px;
+    padding: 18px 28px;
+    min-width: 170px;
+    box-shadow: 0 4px 14px rgba(23, 38, 58, 0.06);
+  }
+  .card .label {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #7e97ae;
+    margin-bottom: 6px;
+  }
+  .card .value { font-size: 1.2rem; font-weight: 600; color: #17263a; }
+  .next {
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(24, 114, 179, 0.18);
+    border-radius: 14px;
+    padding: 24px 28px;
+    text-align: left;
+    box-shadow: 0 4px 14px rgba(23, 38, 58, 0.06);
+  }
+  .next h2 { font-size: 1rem; color: #1872b3; margin-bottom: 14px; }
+  .next ul { list-style: none; }
+  .next li { padding: 6px 0; color: #52677f; font-size: 0.95rem; }
+  .next code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #17263a;
+    color: #d7e6f2;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.85rem;
+  }
+  .rails { margin-top: 28px; color: #7e97ae; font-size: 0.9rem; }
+  .rails span { color: #1872b3; font-weight: 600; }
+</style>
+<div class="page">
+  <div class="logo">
+    <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true">
+      <circle cx="48" cy="48" r="46" fill="#1872b3" opacity="0.08"/>
+      <rect x="28" y="18" width="40" height="46" rx="12" fill="#1872b3"/>
+      <rect x="34" y="26" width="13" height="12" rx="3" fill="#fff"/>
+      <rect x="49" y="26" width="13" height="12" rx="3" fill="#fff"/>
+      <rect x="34" y="44" width="28" height="8" rx="4" fill="#fff" opacity="0.9"/>
+      <circle cx="38" cy="60" r="3" fill="#fff"/>
+      <circle cx="58" cy="60" r="3" fill="#fff"/>
+      <path d="M30 68 L22 82 M66 68 L74 82" stroke="#1872b3" stroke-width="4" stroke-linecap="round"/>
+      <path d="M20 82 H76" stroke="#17263a" stroke-width="4" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <h1>Yay! You're on CRails!</h1>
+  <p class="tagline">Rails, ported to Crystal — compiled, fast, familiar.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="label">CRails version</span>
+      <span class="value"><%= CRails::VERSION %></span>
+    </div>
+    <div class="card">
+      <span class="label">Crystal version</span>
+      <span class="value"><%= Crystal::VERSION %></span>
+    </div>
+    <div class="card">
+      <span class="label">Environment</span>
+      <span class="value"><%= CRails.env.to_s.downcase %></span>
+    </div>
+  </div>
+  <div class="next">
+    <h2>What's next?</h2>
+    <ul>
+      <li><code>bin/crails server</code> — build and run the app on port 3000</li>
+      <li><code>bin/crails console</code> — interactive console with your models loaded</li>
+      <li><code>bin/crails routes</code> — list all routes</li>
+      <li><code>bin/crails watch</code> — rebuild on change (dev loop)</li>
+    </ul>
+  </div>
+  <p class="rails">Conventions over configuration — just like <span>Ruby on Rails</span>.</p>
+</div>

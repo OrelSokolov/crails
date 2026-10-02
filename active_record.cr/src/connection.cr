@@ -23,8 +23,10 @@ module ActiveRecord
     end
 
     # Rails-style config: adapter, host, port, username, password,
-    # database, sslmode, schema_search_path. A host starting with "/"
-    # is a unix socket directory.
+    # database, sslmode, schema_search_path, pool. A host starting with
+    # "/" is a unix socket directory. `pool` caps the connection pool
+    # (Rails semantics, default 5); without it the pool would keep at
+    # most 1 idle connection and reconnect on every concurrent request.
     def self.establish_connection(**config) : DB::Database
       @@schema_search_path = config[:schema_search_path]?
       establish_connection(build_url(**config))
@@ -48,6 +50,7 @@ module ActiveRecord
         password: conf["password"]?.try(&.as_s?),
         database: conf["database"]?.try(&.as_s?),
         schema_search_path: conf["schema_search_path"]?.try(&.as_s?),
+        pool: conf["pool"]?.try(&.as_i?),
       )
     end
 
@@ -83,6 +86,12 @@ module ActiveRecord
       end
       if sslmode = config[:sslmode]?
         params << "sslmode=#{sslmode}"
+      end
+      # Rails `pool:` — keep up to N connections open instead of
+      # reconnecting per request. Default matches Rails (5).
+      if pool = config[:pool]? || 5
+        params << "max_pool_size=#{pool}"
+        params << "max_idle_pool_size=#{pool}"
       end
 
       String.build do |io|

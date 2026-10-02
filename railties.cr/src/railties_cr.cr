@@ -96,8 +96,12 @@ module CRails
         context.response.print body
         status = 500
       ensure
-        elapsed_ms = ((Time.instant - started).total_milliseconds).round.to_i
-        CRails.logger.info { "#{context.request.method} #{context.request.path} -> #{status} (#{elapsed_ms}ms)" }
+        elapsed = Time.instant - started
+        if elapsed >= 1.millisecond
+          CRails.logger.info { "#{context.request.method} #{context.request.path} -> #{status} (#{elapsed.total_milliseconds.round.to_i}ms)" }
+        else
+          CRails.logger.info { "#{context.request.method} #{context.request.path} -> #{status} (#{(elapsed.total_nanoseconds // 1000).to_i}µs)" }
+        end
       end
     end
 

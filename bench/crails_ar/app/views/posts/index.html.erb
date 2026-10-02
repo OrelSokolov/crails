@@ -1,0 +1,8 @@
+<h1>Posts</h1>
+<ul class="posts">
+<%= render partial: "post", collection: @posts %>
+</ul>
+<%= form_tag "/posts" do %>
+  <%= text_field_tag "title", "", placeholder: "Title" %>
+  <%= submit_tag "Create" %>
+<% end %>

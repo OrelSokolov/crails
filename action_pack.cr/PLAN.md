@@ -2,7 +2,35 @@
 
 > ⚠️ EXPERIMENTAL FRAMEWORK, DO NOT USE IN PRODUCTION YET.
 
-Неймспейсы: `ActionController`, `ActionDispatch` — 1:1. Оценка: ~90%.
+Неймспейсы: `ActionController`, `ActionDispatch` — 1:1.
+
+## Статус (Iteration 3, 2026-10-02)
+
+Спеки: `CRAILS_VIEWS=spec/fixtures/app/views crystal spec` —
+**53 examples, 0 failures** (11 http/routing, 28 strong params
+с оракулом `oracle/params_cases.rb` → `oracle/params_expected.yml`
+(снят с actionpack 8.1.4), 14 controllers).
+
+Сделано:
+- strong parameters: `Parameters` (`require/permit/expect/to_h`;
+  `[]`/`[]?`, парсинг query + JSON/form тел, вложенные форм-ключи
+  `post[title]=x`)
+- контроллеры: `before_action/skip_before_action` (only/except/if/
+  unless), `rescue_from`, `respond_to`, `head`, `redirect_back`,
+  cookies/session (cookie store)/flash (read-once)
+- рендер action-шаблонов `.html.erb` через action_view.cr: шаблоны
+  приложения сканируются и компилируются на этапе сборки (CRAILS_VIEWS
+  или `app/views`); партиалы объявляются приложением через
+  `compile_partials` в ApplicationController (типы локалей известны
+  только приложению)
+
+Отклонения (задокументированы):
+- `permit`/`expect` принимают вложенные фильтры hash-аргументом:
+  `permit(:title, {"author" => [:name]})` — `**opts` с гетерогенными
+  значениями роняет компилятор Crystal 1.21
+- session/flash — cookie store без подписи/шифрования; CSRF-слоя нет
+  (бенчи это учитывают, см. bench/results/101, 300)
+- `send_file`/`send_data`, `cookies.signed/encrypted`, HTTP-кэш — P2
 
 ## Цель
 
@@ -82,7 +110,7 @@ discard`, `add_flash_types :warning` (макрос).
 
 scaffold-контроллер из Rails-туториала (`resources :posts` + CRUD +
 notice-flash + strong params) компилируется после `rails→crails` замены
-только ERB→ECR и `Rails`→`CRails`.
+`Rails`→`CRails` (шаблоны остаются ERB).
 
 ## Зависимости
 

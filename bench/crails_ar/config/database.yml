@@ -1,0 +1,22 @@
+# Picked up automatically by `crails console` (DATABASE_URL
+# overrides). host starting with "/" is a unix socket directory.
+development:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_bench
+
+test:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_ar_test
+
+production:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_bench
+  pool: 16
+  # for TCP + password deployments set host: db.example.com,
+  # port: 5432, password: ... — or just use DATABASE_URL

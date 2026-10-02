@@ -27,6 +27,11 @@ test:
 #
 # Similarly, if you deploy your application as a Docker container, you must
 # ensure the database is located in a persisted volume.
+# Production runs on PostgreSQL to share the exact same PG instance
+# with the CRails app for the AR benchmarks (bench/PLAN.md 100/101).
 production:
-  <<: *default
-  # database: path/to/persistent/storage/production.sqlite3
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_bench
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>

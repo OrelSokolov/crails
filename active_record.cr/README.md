@@ -37,7 +37,8 @@ crystal run examples/datalake_read.cr
 - Подключение: `establish_connection(url)`, `establish_connection(**config)`,
   `establish_connection_from_yaml(path, env)` (Rails database.yml-подмножество),
   `DATABASE_URL`, unix-сокеты (`host: "/var/run/postgresql"`),
-  `schema_search_path=`.
+  `schema_search_path=`, пул коннектов Rails-семантикой `pool:`
+  (дефолт 5, держит до N соединений открытыми).
 - Модели: `find/find?/find_by/find_by!`, `where` (String+args, hash,
   Range→BETWEEN, Array→IN, nil→IS NULL), `not`, `order` (Symbol/String/hash),
   `limit/offset/reverse_order`, `first/first!/last/take/sole`,

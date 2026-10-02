@@ -1,9 +1,37 @@
-# action_view.cr — порт ActionView (хэлперы, ECR, форм-билдер)
+# action_view.cr — порт ActionView (хэлперы, ERB, форм-билдер)
 
 > ⚠️ EXPERIMENTAL FRAMEWORK, DO NOT USE IN PRODUCTION YET.
 
-Неймспейс: `ActionView` — 1:1. Оценка: ~85%. Шаблоны: **ECR вместо ERB**
-(согласовано — единственная видимая замена).
+Неймспейс: `ActionView` — 1:1. Шаблоны: **ERB-синтаксис** (совместимы с
+Rails): собственный компилятор `src/template_processor.cr` (через macro
+`run()`, как stdlib ECR) генерирует методы-рендеры на этапе сборки;
+`<%= %>` автоэкранирует, SafeString — маркер safe-HTML.
+
+## Статус (Iteration 3, 2026-10-02)
+
+Оракул: `oracle/cases.rb` → `oracle/expected.yml` (сняты с actionview
+8.1.4), спек `spec/oracle_spec.cr` — **109 examples, 0 failures**.
+
+Сделано:
+- output-safety (SafeString, raw/safe_join/escape_once), tag/content,
+  text/number, url (link_to/button_to/mail_to), assets, form_tag-хелперы,
+  FormBuilder (`form_with` + поля, интерфейс `ActionView::FormModel`:
+  `form_scope`/`form_attributes`/`form_persisted?`)
+- rendering: буфер `@__av_buf`, `capture`, `content_for`/`provide`,
+  макросы `compile_template`/`compile_layout`/`compile_partials`
+- partials + collection-render: `render partial:, locals:, collection:,
+  as_local:, spacer_template:`; локали — реальные типизированные
+  аргументы скомпилированного метода; `<name>_counter` 0-based
+  (поведение Rails 7.1+, подтверждено оракулом)
+- newline-семантика Rails 8.1 `load_defaults`: у action-шаблонов chomp
+  одного завершающего `\n`, партиалы/layout — байт-в-байт (оракул)
+
+Отклонения (задокументированы):
+- locals-хеш — Crystal-литерал: `locals: {"post" => post}`, не рубишный
+  `{post: post}` (Ruby-литерал в Crystal — NamedTuple)
+- типы локалей партиала декларируются приложением в `compile_partials`
+  (compile-time фреймворк; Crystal не позволяет `Object` в generic)
+- `fields_for`, sanitize (lexbor), fragment cache, полиморфные url — P2
 
 ## Цель
 
@@ -13,11 +41,11 @@ layouts/partials/content_for.
 ## API 1:1
 
 ### Рендеринг (P0)
-- `app/views/<controller>/<action>.html.ecr`; layouts (`layouts/application.html.ecr`,
+- `app/views/<controller>/<action>.html.erb`; layouts (`layouts/application.html.erb`,
   `yield`, `content_for :sidebar / content_for? / provide`), вложенные
   layouts
 - `render partial: "shared/post", locals: {post: @post}`,
-  collection-рендер (`render @posts` → `_post.ecr`,
+  collection-рендер (`render @posts` → `_post.erb`,
   `post_counter`, `post_iteration.size/first?/last?`), spacer_template
 - Инстанс-переменные контроллера видны во вьюхе (как в Rails)
 
@@ -65,7 +93,7 @@ MD5-дайджеста исходника шаблона (dependency-tracker п�
 
 ## Реализация
 
-- ECR-компиляция в методы-рендеры при сборке (`ECR.def_to_s`-паттерн);
+- ERB-компиляция в методы-рендеры при сборке (`run()`-процессор);
   view-контекст = класс с миксинами модулей хелперов.
 - FormBuilder — статический набор методов (в Rails они тоже генерятся
   один раз CodeGenerator'ом).
@@ -73,7 +101,7 @@ MD5-дайджеста исходника шаблона (dependency-tracker п�
 
 ## Фазы
 
-- P0: ECR + layouts/partials, content_for, тег/контент/текст/числа/URL-хелперы.
+- P0: ERB + layouts/partials, content_for, тег/контент/текст/числа/URL-хелперы.
 - P1: form_with/FormBuilder полный, tag-хелперы, assets, csrf.
 - P2: sanitize (lexbor), fragment cache, полиморфные url, collection
   counter/iteration хвосты.

@@ -18,12 +18,12 @@
 ### 000-hello (Iteration 0)
 `GET /` из шаблона. wrk: RPS, p50/p99, RSS, старт, бинарник.
 
-### 100-ar-read (Iteration 2)
+### 100-ar-read (Iteration 2) — done, `results/100-ar-read.md`
 `GET /posts/:id` — модель из PostgreSQL, пул коннектов.
 Матрица fibers: 16/64/256/1024. Цель: найти потолок RPS и деградацию
 латентности. + сравнение с Rails+Puma (threads 5/16).
 
-### 110-ar-write (Iteration 2)
+### 101-ar-crud (Iteration 2) — done, `results/101-ar-crud.md`
 `POST /posts` с валидацией → INSERT; транзакции.
 Метрика: RPS записи, ошибки, лаг реплики нечестно — фиксируем только
 локальный PG.

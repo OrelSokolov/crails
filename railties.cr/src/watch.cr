@@ -6,7 +6,7 @@ module CRails
     # poll sources, rebuild the binary and restart the server on change.
     module Watch
       WATCH_GLOBS = ["src/**/*.cr", "config/**/*.cr", "app/**/*.cr",
-                     "app/**/*.ecr", "shard.yml"]
+                     "app/**/*.erb", "shard.yml"]
 
       def self.run(args : Array(String)) : Nil
         Build.ensure_app
