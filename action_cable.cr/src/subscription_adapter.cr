@@ -1,0 +1,60 @@
+# Subscription adapters (pubsub seam). Mirrors ActionCable::SubscriptionAdapter.
+#
+# Test adapter behavior per 8.1.4: broadcast records the payload for
+# `broadcasts(channel)` AND delivers to subscribers (Ruby does the
+# delivery asynchronously through Async; we do it synchronously —
+# observable difference is only timing, values are identical).
+
+module ActionCable
+  module SubscriptionAdapter
+    class Base
+      def broadcast(channel : String, payload : String) : Nil
+      end
+
+      def subscribe(channel : String, callback : Proc(String, Nil)) : Nil
+      end
+
+      def unsubscribe(channel : String, callback : Proc(String, Nil)) : Nil
+      end
+
+      def shutdown : Nil
+      end
+    end
+
+    class Test < Base
+      def initialize
+        @channels_data = {} of String => Array(String)
+        @subscribers = {} of String => Array(Proc(String, Nil))
+      end
+
+      def broadcast(channel : String, payload : String) : Nil
+        broadcasts(channel) << payload
+        (@subscribers[channel]? || [] of Proc(String, Nil)).each(&.call(payload))
+      end
+
+      def broadcasts(channel : String) : Array(String)
+        @channels_data[channel] ||= [] of String
+      end
+
+      def clear_messages(channel : String) : Nil
+        @channels_data[channel] = [] of String
+      end
+
+      def subscribe(channel : String, callback : Proc(String, Nil)) : Nil
+        (@subscribers[channel] ||= [] of Proc(String, Nil)) << callback
+      end
+
+      # Deviation from Ruby's unsubscribe(channel, callback): Proc has
+      # no identity in Crystal, so this drops every subscriber of the
+      # channel. Channels unsubscribe by stream name, which is the only
+      # real-world caller.
+      def unsubscribe(channel : String, callback : Proc(String, Nil)) : Nil
+        @subscribers.delete(channel)
+      end
+
+      def shutdown : Nil
+        @subscribers.clear
+      end
+    end
+  end
+end

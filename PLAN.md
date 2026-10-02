@@ -46,18 +46,24 @@ IrreversibleMigration 1:1; `through`/polymorphic-ассоциации — P2.
 - [x] миграции DSL + `crails db:migrate/rollback/schema:dump` (schema.yml)
 - [x] bench `100-ar-read` / `101-ar-crud` vs Rails
 
-### Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур)
-- [ ] layouts/partials/collection-render, `content_for`/`provide`
-- [ ] хелперы text/number/url/tag, output-safety
-- [ ] FormBuilder (`form_with` + поля), `fields_for`
-- [ ] strong params, cookies/session/flash, `rescue_from`, `respond_to`,
-      `send_file/send_data`
-- [ ] fragment cache
-- [ ] bench full-page vs Rails
+### Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур) ✅ (2026-10-02)
+- [x] layouts/partials/collection-render (counter 0-based, spacer), `content_for`/`provide`
+- [x] хелперы text/number/url/tag, output-safety (SafeString)
+- [x] FormBuilder (`form_with` + поля); `fields_for` — перенесено в Iteration 5
+- [x] strong params, cookies/session/flash, `rescue_from`, `respond_to`
+      (`send_file`/`send_data` — Iteration 5)
+- [ ] fragment cache (Iteration 5)
+- [x] bench full-page vs Rails — `bench/results/300-full-page.md` (~65× RPS)
+
+Отклонения от Rails (задокументированы в PLAN.md шардов): locals-хеш в
+`render partial:` — Crystal-литерал `{"k" => v}` вместо рубишного `{k: v}`;
+`permit`/`expect` принимают вложенные фильтры hash-аргументом; session/flash
+cookie-store без подписи; CSRF-слоя нет; newline-семантика ERB выровнена
+по Rails 8.1 `load_defaults` (chomp одного `\n` у action-шаблонов).
 
 ### Iteration 4 — active_job.cr + action_cable.cr
-- [ ] ActiveJob: `perform_later/perform_now`, retry/discard DSL, адаптеры (inline/test)
-- [ ] Cable: ws на fiber'ах, channels, `stream_from`/`broadcast_to`
+- [x] ActiveJob: `perform_later/perform_now`, retry/discard DSL, адаптеры (inline/test) — oracle 28 кейсов, 29/29 зелёные
+- [~] Cable: каналы/стримы/протокол готовы (oracle 14/14); ws на fiber'ах — P0.5, осталось
 - [ ] bench: удержанные ws-коннекты; джобы/сек vs Sidekiq+Rails
 
 ### Iteration 5 — хвост стека (порядок по необходимости)

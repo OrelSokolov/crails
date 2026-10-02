@@ -174,8 +174,10 @@ module ActiveSupport
     end
 
     private def unit_label(unit : Symbol, scaled : Float64) : String
-      base = unit.to_s.upcase
-      scaled == 1 ? "Byte" : (unit == :byte ? "Bytes" : base)
+      case unit
+      when :byte then scaled == 1 ? "Byte" : "Bytes"
+      else            unit.to_s.upcase
+      end
     end
   end
 end
