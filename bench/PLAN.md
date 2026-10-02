@@ -28,20 +28,20 @@
 Метрика: RPS записи, ошибки, лаг реплики нечестно — фиксируем только
 локальный PG.
 
-### 200-jobs (Iteration 4)
+### 200-jobs (Iteration 4) — done, `results/200-jobs.md`
 Минимум 3 конфигурации:
 - async-адаптер (in-process fiber-пул) — CRails монолит
-- PG-очередь (skip locked) — CRails durable
+- PG-очередь (skip locked) — CRails durable (не сделано, P1+)
 - Sidekiq + Rails (Redis) — референс
 Метрики: джобов/сек, latency enqueue→perform при насыщении, потеря при
-kill -9 (durability), RSS на воркер.
+kill -9 (durability — не мерялась, TODO), RSS на воркер.
 
-### 300-websockets (Iteration 4)
+### 300-websockets (Iteration 4) — done, `results/300-websockets.md`
 ActionCable-совместимый канал, broadcast каждые N мс.
-Метрики: удержанные коннекты (цель 100k на одном процессе — проверяем),
-сообщений/сек broadcast, память на коннект. Клиент: собственный
-load-генератор на Crystal (fiber-клиенты) — wrk не умеет ws.
-Референс: Rails ActionCable + anycable.
+Снято: 300 удержанных коннектов, сообщений/сек broadcast, память на
+коннект (~290 KB). Клиент: `loadgen/ws_load.cr` (fiber-клиенты).
+Цель 100k коннектов на процессе — не проверена (следующий шаг).
+Референс: Rails ActionCable 8.1.4 + Puma.
 
 ### 400-monolith-full (Iteration 6)
 Богатое приложение: devise-аутентификация, CRUD, форма, джобы, ws.

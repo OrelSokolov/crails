@@ -62,9 +62,9 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 по Rails 8.1 `load_defaults` (chomp одного `\n` у action-шаблонов).
 
 ### Iteration 4 — active_job.cr + action_cable.cr
-- [x] ActiveJob: `perform_later/perform_now`, retry/discard DSL, адаптеры (inline/test) — oracle 28 кейсов, 29/29 зелёные
-- [~] Cable: каналы/стримы/протокол готовы (oracle 14/14); ws на fiber'ах — P0.5, осталось
-- [ ] bench: удержанные ws-коннекты; джобы/сек vs Sidekiq+Rails
+- [x] ActiveJob: `perform_later/perform_now`, retry/discard DSL, адаптеры (inline/test/async-fiber-пул) — oracle 28 кейсов, 29/29 + смоук async
+- [x] Cable: channels/стримы/протокол + ws-слой /cable (fiber-per-connection) — oracle 14/14 + интеграционный ws-спек
+- [x] bench: `results/200-jobs.md` (CRails ~1M jobs/s vs Rails async 32k vs Sidekiq 1.4k), `results/300-websockets.md` (~260k msg/s vs Rails 6.7k, 300 коннектов 0 потерь)
 
 ### Iteration 5 — хвост стека (порядок по необходимости)
 - [ ] action_mailer.cr (порт mail: MIME/SMTP)

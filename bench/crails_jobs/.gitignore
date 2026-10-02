@@ -1,0 +1,4 @@
+lib/
+.shards/
+bin/jobs_app
+*.log

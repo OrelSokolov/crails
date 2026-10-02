@@ -109,6 +109,11 @@ module ActionCable
         return unless action
         __dispatch_action(action, data)
       end
+
+      # Overridden per-subclass by end-of-program codegen (below).
+      def __dispatch_action(action : String, data : Hash(String, String)) : Bool
+        false
+      end
     end
   end
 end
@@ -140,4 +145,13 @@ macro finished
       end
     end
   {% end %}
+
+  # Channel-class lookup by name (Ruby uses const_get; we generate the
+  # table at end-of-program when all channel classes are known).
+  def ActionCable.lookup_channel(name : String)
+    {% for c in ::ActionCable::CHANNELS %}
+      return {{ c.id }} if name == {{ c.name.stringify }}
+    {% end %}
+    nil
+  end
 end

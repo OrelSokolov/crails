@@ -4,6 +4,8 @@ require "json"
 require "./protocol"
 require "./subscription_adapter"
 require "./channel"
+require "./connection"
+require "./server"
 require "./ruby_inspect"
 
 module ActionCable

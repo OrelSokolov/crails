@@ -54,24 +54,31 @@ worker_pool_size (fiber-пул), logger, log_tags.
 - Remote disconnect: внутренние per-connection каналы, как в Rails.
 - Identifier'ы → per-connection fiber state.
 
-## Статус (Iteration 4, P0-скелет — готов)
+## Статус (Iteration 4 — P0+P0.5 готовы, бенч снят)
 
 - Oracle: `oracle/cases.rb` → `oracle/expected.yml`, 14 кейсов сняты с
   actioncable 8.1.4 (канальная семантика через FakeConnection-харнесс +
   протокольные константы). Зеркало: `spec/oracle_spec.cr` — 14/14 зелёные.
+- WS-слой (P0.5): `src/connection.cr` + `src/server.cr` — Rails-JSON-протокол
+  (welcome/subscribe/confirm_subscription/message/ping), fiber-per-connection,
+  монтируется на любой HTTP::Server через `Server#ws_handler`. Покрыт
+  интеграционным спеком `spec/ws_spec.cr` (реальный сервер + клиент).
+- AsyncAdapter active_job: `bench/crails_jobs` — см. `bench/results/200-jobs.md`
+  (~1M jobs/s no-op). WS-бенч: `bench/crails_ws` + `bench/loadgen/ws_load.cr` —
+  см. `bench/results/300-websockets.md` (~260k msg/s при 300 коннектах).
 - Реализовано (`src/`): `protocol.cr` (INTERNAL-константы 1:1),
   `subscription_adapter.cr` (Base + Test), `channel.cr`
   (Channel::Base: subscribed/unsubscribed/stream_from/stop_all_streams/
-  transmit/reject/params + perform_action-диспетчер), `ruby_inspect.cr`.
+  transmit/reject/params + perform_action-диспетчер), `connection.cr`,
+  `server.cr`, `ruby_inspect.cr`.
 - Зафиксированные отклонения от Ruby API:
   - `transmit` публичный (в Ruby приватный; в Crystal нет `send`);
   - `streams` → публичный `stream_names` (для тестов);
   - `unsubscribe(channel, callback)` → `unsubscribe(channel)` — у Proc
     в Crystal нет identity;
   - params — `Hash(String, String)` вместо HashWithIndifferentAccess;
-  - confirmation/rejection-сообщения шлёт connection-слой (8.1) — канал
-    их не транслирует, вне скоупа до P0.5;
-  - INTERNAL — именованные константы вместо гетерогенного хеша.
+  - INTERNAL — именованные константы вместо гетерогенного хеша;
+  - identified_by/cookies/periodically/stream_for/broadcast_to — P1.
 - Семантика, снятая оракулом: transmit оборачивает в
   `{identifier:, message:}`; unsubscribe чистит streams до вызова
   `unsubscribed`; dispatch по публичным 0/1-арг методам подкласса

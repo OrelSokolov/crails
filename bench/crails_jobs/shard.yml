@@ -1,0 +1,4 @@
+# Framework shards come from lib/ symlinks (see README).
+name: crails_jobs
+version: 0.1.0
+crystal: ">= 1.21.0"
