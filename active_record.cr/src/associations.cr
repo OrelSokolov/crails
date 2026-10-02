@@ -88,7 +88,7 @@ module ActiveRecord
 
     def delete_all : Nil
       if oid = @owner_id
-        Base.connection.exec(
+        Base.__session.exec(
           "DELETE FROM #{@model.quoted_table_name} WHERE \"#{@foreign_key}\" = $1",
           [oid])
       end

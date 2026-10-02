@@ -35,6 +35,12 @@ module ActiveRecord
     def __run_dependents : Nil
     end
 
+    def __run_after_commit(event : Symbol) : Nil
+    end
+
+    def __run_after_rollback(event : Symbol) : Nil
+    end
+
     # --- DSL (flat definitions: a macro cannot be emitted by a macro) ---
 
     macro before_validation(method_name = nil, &block)
@@ -147,6 +153,45 @@ module ActiveRecord
         {{ call }}
         nil
       end
+    end
+
+    # --- transaction callbacks (transactions.cr) -------------------------
+    # Fires on the real COMMIT / any ROLLBACK (incl. savepoints). Without
+    # an open transaction it fires per-op (implicit auto-commit tx).
+    # `on:` filters by event: :create / :update / :destroy (Symbol or Array).
+
+    macro after_commit(on = nil, method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("after_commit__cb_") }.size %}
+      {% if method_name %}
+        def after_commit__cb_{{n.id}}(event : Symbol) : Nil
+          {% if on %}return unless __tx_event_match?(event, {{on}}){% end %}
+          {{method_name.id}}
+          nil
+        end
+      {% else %}
+        def after_commit__cb_{{n.id}}(event : Symbol) : Nil
+          {% if on %}return unless __tx_event_match?(event, {{on}}){% end %}
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro after_rollback(on = nil, method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("after_rollback__cb_") }.size %}
+      {% if method_name %}
+        def after_rollback__cb_{{n.id}}(event : Symbol) : Nil
+          {% if on %}return unless __tx_event_match?(event, {{on}}){% end %}
+          {{method_name.id}}
+          nil
+        end
+      {% else %}
+        def after_rollback__cb_{{n.id}}(event : Symbol) : Nil
+          {% if on %}return unless __tx_event_match?(event, {{on}}){% end %}
+          {{block.body}}
+          nil
+        end
+      {% end %}
     end
   end
 end

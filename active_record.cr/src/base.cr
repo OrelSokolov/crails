@@ -128,11 +128,16 @@ module ActiveRecord
         end
       {% end %}
 
-      def initialize(*, {% for c in cols %} {% if c[3] %} {{c[0].id}} : {{c[1].id}}? = {{c[4]}}, {% end %} {% end %})
-        {% for c in cols %}
-          {% if c[3] %}@{{c[0].id}} = {{c[0].id}}{% end %}
-        {% end %}
-      end
+      {% params = [] of Nil %}
+      {% for c in cols %}{% if c[3] %}{% params << c %}{% end %}{% end %}
+      {% if params.empty? %}
+        def initialize
+        end
+      {% else %}
+        def initialize(*, {% for c in params %} {{c[0].id}} : {{c[1].id}}? = {{c[4]}}, {% end %})
+          {% for c in params %}@{{c[0].id}} = {{c[0].id}};{% end %}
+        end
+      {% end %}
 
       def self.__from_row(rs : DB::ResultSet) : self
         record = new
@@ -365,6 +370,20 @@ module ActiveRecord
           def __run_dependents : Nil
             {% for m in t.methods %}
               {% if m.name.stringify.starts_with?("dependent__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_commit(event : Symbol) : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_commit__cb_") %}{{ m.name.id }}(event){% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_rollback(event : Symbol) : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_rollback__cb_") %}{{ m.name.id }}(event){% end %}
             {% end %}
             nil
           end

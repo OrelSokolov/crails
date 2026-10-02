@@ -76,3 +76,18 @@ misc_first_or_create_twice	true
 misc_find_or_create_by	"true 1"
 misc_insert_all	"2"
 misc_upsert	2
+tx_return_value	42
+tx_commit_create	"true true"
+tx_rollback_raise	"boom true"
+tx_rollback_marker	"nil true"
+tx_joined_nested	"99 false"
+tx_requires_new	"committed true true"
+tx_requires_new_exception	"inner true"
+tx_after_commit_log	"[\"after_commit\"]"
+tx_after_rollback_log	"[\"after_rollback\"]"
+tx_after_rollback_requires_new	"[\"after_rollback\", \"after_commit\"]"
+tx_after_commit_no_tx	"[\"after_commit\"]"
+tx_after_commit_update_destroy	"[\"after_commit\", \"after_commit\"]"
+tx_isolation	7
+tx_with_lock	5
+tx_lock_bang	"true \"txlb\""

@@ -47,6 +47,21 @@ module ActiveRecord
       return false if destroyed?
       return false unless validate ? valid? : true
       return false unless __run_before_save
+      tx_event : Symbol = new_record? ? :create : :update
+      tx = Base.__current_tx
+      Base.__register_in_transaction(self, tx_event)
+      begin
+        __persist_changes
+        __run_after_commit(tx_event) unless tx
+        true
+      rescue ex : DB::Error | PQ::PQError
+        __run_after_rollback(tx_event) unless tx
+        raise RecordNotUnique.new(ex.message) if ex.message.try(&.includes?("duplicate key"))
+        raise ex
+      end
+    end
+
+    private def __persist_changes : Nil
       changes_to_write = changes
       if new_record?
         __write_timestamps_on_create
@@ -62,10 +77,6 @@ module ActiveRecord
       __run_after_save
       @previous_changes = changes_to_write
       __snapshot_original!
-      true
-    rescue ex : DB::Error | PQ::PQError
-      raise RecordNotUnique.new(ex.message) if ex.message.try(&.includes?("duplicate key"))
-      raise ex
     end
 
     def save! : Bool
@@ -117,7 +128,7 @@ module ActiveRecord
     end
 
     def self.delete(id : Int64 | Int32) : Int64
-      Base.connection.exec(
+      Base.__session.exec(
         "DELETE FROM #{quoted_table_name} WHERE \"id\" = $1", args: [id.to_i64]).rows_affected
     end
 
@@ -126,14 +137,17 @@ module ActiveRecord
     def destroy : self
       unless destroyed?
         __run_before_destroy
+        tx = Base.__current_tx
         if (pk = @id)
+          Base.__register_in_transaction(self, :destroy)
           __run_dependents
-          Base.connection.exec(
+          Base.__session.exec(
             "DELETE FROM #{self.class.quoted_table_name} WHERE \"id\" = $1", args: [pk])
         end
         self.destroyed = true
         self.new_record = false
         __run_after_destroy
+        __run_after_commit(:destroy) unless tx
       end
       self
     end
@@ -154,7 +168,7 @@ module ActiveRecord
       values.each_value { |v| args << v.as(DB::Any) }
       sql = "UPDATE #{self.class.quoted_table_name} SET #{sets.map_with_index { |s, i| "#{s} = $#{i + 1}" }.join(", ")} WHERE \"id\" = $#{values.size + 1}"
       args << pk
-      Base.connection.exec(sql, args: args)
+      Base.__session.exec(sql, args: args)
       __snapshot_original!
     end
 
@@ -172,7 +186,7 @@ module ActiveRecord
       pk = @id.not_nil!
       sql = "UPDATE #{self.class.quoted_table_name} SET #{assignments.map_with_index { |s, i| "#{s} = $#{i + 1}" }.join(", ")} WHERE \"id\" = $#{cols.size + 1}"
       args << pk
-      Base.connection.exec(sql, args: args)
+      Base.__session.exec(sql, args: args)
       cols.each { |c| assign_attributes({c => now}) }
       __snapshot_original!
       self
@@ -209,7 +223,7 @@ module ActiveRecord
       end
       tail = conflict_clause.empty? ? "" : " ON CONFLICT #{conflict_clause}"
       sql = "INSERT INTO #{quoted_table_name} (#{col_sql}) VALUES #{values_sql.join(", ")}#{tail}"
-      Base.connection.exec(sql, args: args).rows_affected
+      Base.__session.exec(sql, args: args).rows_affected
     end
 
     def self.upsert_all(rows : Array(Hash(String, Value))) : Int64
@@ -261,7 +275,7 @@ module ActiveRecord
       end
       col_sql = col_names.map { |c| %("#{c.gsub('"', "")}") }.join(", ")
       sql = "INSERT INTO #{self.class.quoted_table_name} (#{col_sql}) VALUES (#{placeholders.join(", ")}) RETURNING \"id\""
-      Base.connection.query_one(sql, args: args, as: Int64)
+      Base.__session.query_one(sql, args: args, as: Int64)
     end
 
     def __update(changes : Hash(String, Tuple(Value, Value))) : Nil
@@ -274,7 +288,7 @@ module ActiveRecord
       end
       args << pk
       sql = "UPDATE #{self.class.quoted_table_name} SET #{sets.join(", ")} WHERE \"id\" = $#{col_names.size + 1}"
-      Base.connection.exec(sql, args: args)
+      Base.__session.exec(sql, args: args)
     end
 
     def __write_timestamps_on_create : Nil

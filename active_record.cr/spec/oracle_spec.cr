@@ -62,6 +62,13 @@ class AbortedPost < ActiveRecord::Base
   before_save { false }
 end
 
+# Mirror of the Ruby oracle TxPost (tx_* cases).
+class TxPost < ActiveRecord::Base
+  set_table_name "posts"
+  after_commit { LOG << "after_commit" }
+  after_rollback { LOG << "after_rollback" }
+end
+
 ORACLE_URL = ENV["AR_ORACLE_URL"]? ||
              "postgres://root@/crails_ar_oracle?host=/var/run/postgresql"
 
@@ -412,6 +419,120 @@ cases["misc_upsert"] = -> do
           {"title" => "up2", "views" => 0_i64, "created_at" => now, "updated_at" => now} of String => ActiveRecord::Value]
   Post.upsert_all(rows)
   r(Post.where("title IN (?, ?)", "up1", "up2").count)
+end
+
+# --- transactions (mirror of oracle/cases.rb) -----------------------------
+
+cases["tx_return_value"] = -> { r(Post.transaction { 42 }) }
+cases["tx_commit_create"] = -> do
+  result = Post.transaction do
+    p = Post.create!({"title" => "txc", "views" => 0_i64})
+    "#{p.persisted?} #{Post.exists?(p.id.not_nil!)}"
+  end
+  r(result)
+end
+cases["tx_rollback_raise"] = -> do
+  before = Post.count
+  begin
+    Post.transaction do
+      Post.create!({"title" => "txr", "views" => 0_i64})
+      raise "boom"
+    end
+  rescue e : RuntimeError
+    r("#{e.message} #{Post.count == before}")
+  end
+end
+cases["tx_rollback_marker"] = -> do
+  before = Post.count
+  result = Post.transaction do
+    Post.create!({"title" => "txm", "views" => 0_i64})
+    raise ActiveRecord::Rollback.new
+    1
+  end
+  r("#{result.inspect} #{Post.count == before}")
+end
+cases["tx_joined_nested"] = -> do
+  before = Post.count
+  result = Post.transaction do
+    Post.transaction do
+      Post.create!({"title" => "txn1", "views" => 0_i64})
+      raise ActiveRecord::Rollback.new
+    end
+    Post.create!({"title" => "txn2", "views" => 0_i64})
+    99
+  end
+  r("#{result.inspect} #{Post.count == before}")
+end
+cases["tx_requires_new"] = -> do
+  outer = Post.create!({"title" => "txo", "views" => 0_i64})
+  result = Post.transaction do
+    Post.transaction(requires_new: true) do
+      Post.create!({"title" => "txi", "views" => 0_i64})
+      raise ActiveRecord::Rollback.new
+    end
+    "committed"
+  end
+  r("#{result} #{Post.exists?(outer.id.not_nil!)} #{Post.where(title: "txi").count == 0}")
+end
+cases["tx_requires_new_exception"] = -> do
+  begin
+    Post.transaction do
+      Post.transaction(requires_new: true) do
+        Post.create!({"title" => "txbad", "views" => 0_i64})
+        raise "inner"
+      end
+    end
+  rescue e : RuntimeError
+    r("#{e.message} #{Post.where(title: "txbad").count == 0}")
+  end
+end
+cases["tx_after_commit_log"] = -> do
+  LOG.clear
+  Post.transaction { TxPost.create!({"title" => "txac", "views" => 0_i64}) }
+  r(LOG.inspect)
+end
+cases["tx_after_rollback_log"] = -> do
+  LOG.clear
+  Post.transaction do
+    TxPost.create!({"title" => "txar", "views" => 0_i64})
+    raise ActiveRecord::Rollback.new
+  end
+  r(LOG.inspect)
+end
+cases["tx_after_rollback_requires_new"] = -> do
+  LOG.clear
+  Post.transaction do
+    Post.transaction(requires_new: true) do
+      TxPost.create!({"title" => "txsp", "views" => 0_i64})
+      raise ActiveRecord::Rollback.new
+    end
+    TxPost.create!({"title" => "txsp2", "views" => 0_i64})
+  end
+  r(LOG.inspect)
+end
+cases["tx_after_commit_no_tx"] = -> do
+  LOG.clear
+  TxPost.create!({"title" => "txnt", "views" => 0_i64})
+  r(LOG.inspect)
+end
+cases["tx_after_commit_update_destroy"] = -> do
+  LOG.clear
+  p = TxPost.create!({"title" => "txud", "views" => 0_i64})
+  LOG.clear
+  p.update({"views" => 1_i64})
+  p.destroy
+  r(LOG.inspect)
+end
+cases["tx_isolation"] = -> { r(Post.transaction(isolation: :serializable) { 7 }) }
+cases["tx_with_lock"] = -> do
+  p = Post.create!({"title" => "txwl", "views" => 0_i64})
+  p.with_lock { p.update({"views" => 5_i64}) }
+  r(Post.find(p.id.not_nil!).views)
+end
+cases["tx_lock_bang"] = -> do
+  p = Post.create!({"title" => "txlb", "views" => 0_i64})
+  locked = Post.transaction { p.lock! }
+  r("#{locked.id == p.id} #{r(locked.title)}")
 end
 
 # === runner =============================================================

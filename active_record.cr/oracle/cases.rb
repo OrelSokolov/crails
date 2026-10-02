@@ -388,3 +388,121 @@ case_run("misc_upsert") do
                    {title: "up2", views: 0, created_at: Time.now.utc, updated_at: Time.now.utc}])
   Post.where(title: %w[up1 up2]).count
 end
+
+# --- transactions (§7) ----------------------------------------------------
+class TxPost < ActiveRecord::Base
+  self.table_name = "posts"
+  after_commit { $log << "after_commit" }
+  after_rollback { $log << "after_rollback" }
+end
+
+case_run("tx_return_value") { Post.transaction { 42 } }
+case_run("tx_commit_create") do
+  Post.transaction do
+    p = Post.create!(title: "txc", views: 0)
+    "#{p.persisted?} #{Post.exists?(p.id)}"
+  end
+end
+case_run("tx_rollback_raise") do
+  before = Post.count
+  begin
+    Post.transaction do
+      Post.create!(title: "txr", views: 0)
+      raise "boom"
+    end
+  rescue RuntimeError => e
+    "#{e.message} #{Post.count == before}"
+  end
+end
+case_run("tx_rollback_marker") do
+  before = Post.count
+  result = Post.transaction do
+    Post.create!(title: "txm", views: 0)
+    raise ActiveRecord::Rollback
+    1
+  end
+  "#{render(result)} #{Post.count == before}"
+end
+case_run("tx_joined_nested") do
+  before = Post.count
+  result = Post.transaction do
+    Post.transaction do
+      Post.create!(title: "txn1", views: 0)
+      raise ActiveRecord::Rollback
+    end
+    Post.create!(title: "txn2", views: 0)
+    99
+  end
+  "#{result} #{Post.count == before}"
+end
+case_run("tx_requires_new") do
+  outer = Post.create!(title: "txo", views: 0)
+  result = Post.transaction do
+    Post.transaction(requires_new: true) do
+      Post.create!(title: "txi", views: 0)
+      raise ActiveRecord::Rollback
+    end
+    "committed"
+  end
+  "#{result} #{Post.exists?(outer.id)} #{Post.where(title: "txi").count == 0}"
+end
+case_run("tx_requires_new_exception") do
+  begin
+    Post.transaction do
+      Post.transaction(requires_new: true) do
+        Post.create!(title: "txbad", views: 0)
+        raise "inner"
+      end
+    end
+  rescue RuntimeError => e
+    "#{e.message} #{Post.where(title: "txbad").count == 0}"
+  end
+end
+case_run("tx_after_commit_log") do
+  $log.clear
+  Post.transaction { TxPost.create!(title: "txac", views: 0) }
+  $log.inspect
+end
+case_run("tx_after_rollback_log") do
+  $log.clear
+  Post.transaction do
+    TxPost.create!(title: "txar", views: 0)
+    raise ActiveRecord::Rollback
+  end
+  $log.inspect
+end
+case_run("tx_after_rollback_requires_new") do
+  $log.clear
+  Post.transaction do
+    Post.transaction(requires_new: true) do
+      TxPost.create!(title: "txsp", views: 0)
+      raise ActiveRecord::Rollback
+    end
+    TxPost.create!(title: "txsp2", views: 0)
+  end
+  $log.inspect
+end
+case_run("tx_after_commit_no_tx") do
+  $log.clear
+  TxPost.create!(title: "txnt", views: 0)
+  $log.inspect
+end
+case_run("tx_after_commit_update_destroy") do
+  $log.clear
+  p = TxPost.create!(title: "txud", views: 0)
+  $log.clear
+  p.update(views: 1)
+  p.destroy
+  $log.inspect
+end
+case_run("tx_isolation") { Post.transaction(isolation: :serializable) { 7 } }
+case_run("tx_with_lock") do
+  p = Post.create!(title: "txwl", views: 0)
+  p.with_lock { p.update(views: 5) }
+  Post.find(p.id).views
+end
+case_run("tx_lock_bang") do
+  p = Post.create!(title: "txlb", views: 0)
+  r = Post.transaction { p.lock! }
+  "#{r.id == p.id} #{render(r.title)}"
+end

@@ -136,7 +136,11 @@ code << "def self.__column_names : Array(String)"
 code << "  #{names.inspect}"
 code << "end"
 
-code << "ar_codegen(#{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}, #{c[:default]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
+if cols.empty?
+  code << "ar_codegen([] of {String, String, Bool, Bool, String})"
+else
+  code << "ar_codegen(#{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}, #{c[:default]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
+end
 
 code << "def to_param : String"
 code << "  id.to_s"

@@ -191,7 +191,7 @@ module ActiveRecord
 
     def each(& : T ->) : Nil
       sql, args = build_sql(select_list, @orders.empty? ? [] of String : @orders)
-      Base.connection.query(sql, args: args) do |rs|
+      Base.__session.query(sql, args: args) do |rs|
         rs.each { yield T.__from_row(rs) }
       end
     end
@@ -202,12 +202,12 @@ module ActiveRecord
 
     def exists? : Bool
       sql, args = build_sql("1", [] of String, limit_override: 1_i64)
-      Base.connection.query_one?(sql, args: args, as: Int32) ? true : false
+      Base.__session.query_one?(sql, args: args, as: Int32) ? true : false
     end
 
     def count : Int64
       sql, args = build_sql("count(*)", [] of String)
-      Base.connection.query_one(sql, args: args, as: Int64)
+      Base.__session.query_one(sql, args: args, as: Int64)
     end
 
     def size : Int64
@@ -217,7 +217,7 @@ module ActiveRecord
     def pluck(col : String | Symbol) : Array(ActiveRecord::Value)
       sql, args = build_sql(quote(col.to_s), @orders.empty? ? [] of String : @orders)
       values = [] of ActiveRecord::Value
-      Base.connection.query(sql, args: args) do |rs|
+      Base.__session.query(sql, args: args) do |rs|
         rs.each { values << rs.read(ActiveRecord::Value) }
       end
       values
