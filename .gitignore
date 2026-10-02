@@ -15,3 +15,4 @@ hello_world/hello/bin/app
 # --- ОС/редакторы ---
 .DS_Store
 *.swp
+active_support.cr/oracle/errors.log
