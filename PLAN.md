@@ -67,7 +67,7 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 - [x] bench: `results/200-jobs.md` (CRails ~1M jobs/s vs Rails async 32k vs Sidekiq 1.4k), `results/300-websockets.md` (~260k msg/s vs Rails 6.7k, 300 коннектов 0 потерь)
 
 ### Iteration 5 — хвост стека (порядок по необходимости)
-- [ ] action_mailer.cr (порт mail: MIME/SMTP)
+- [~] action_mailer.cr — P0 готов (оракул 24 кейса 25/25, SMTP-диалог против фейк-сервера 26/26; P1: deliver_later/.with/observers/previews)
 - [ ] active_storage.cr (blob/variants через libvips, диск+S3)
 - [ ] action_text.cr (sanitize через lexbor)
 - [ ] action_mailbox.cr

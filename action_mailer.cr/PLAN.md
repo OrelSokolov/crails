@@ -48,6 +48,29 @@
 - MessageDelivery — явный facade с перечисленными методами
   Mail::Message (без method_missing).
 
+## Статус (Iteration 5 — P0 готов)
+
+- Oracle: `oracle/cases.rb` → `oracle/expected.yml`, 24 кейса сняты с
+  actionmailer 8.1.4 + mail 2.9.1 (delivery :test; DSL/MIME/multipart/
+  attachments/headers/unicode). Зеркало: `spec/oracle_spec.cr` — 25/25.
+- SMTP: `src/smtp.cr` (RFC 5321 subset: EHLO/MAIL/RCPT/DATA/QUIT,
+  dot-stuffing; STARTTLS/auth — P1) + `src/rfc2822.cr` (wire-рендер).
+  Оракулом не покрыт (нет SMTP-сервера в среде) — протокол зафиксирован
+  фейк-серверным спеком `spec/smtp_spec.cr` (26/26 всего).
+- Реализовано: `mail.cr` (Mail::Message/Part/Attachment/Body/Field,
+  CTE 7bit/base64 по контенту), `base.cr` (DSL: default/mail/
+  format-коллектор/attachments[]/headers[], классовые экшен-методы
+  через registry+codegen → ленивая мемоизированная MessageDelivery,
+  :test delivery).
+- Семантика, снятая оракулом: ASCII-аттач едет 7bit; UTF-8 тело без
+  явного CTE — passthrough (без QP); from/to читаются массивами;
+  1 формат → single part, 2 → multipart/alternative, аттачи →
+  multipart/mixed сверху.
+- Не в P0 (зафиксировано): deliver_later (P1, через active_job.cr),
+  parameterized .with, inline attachments, observers/interceptors,
+  previews, i18n-subject, QP/base64 тела, sendmail/file методы,
+  STARTTLS.
+
 ## Фазы
 
 - P0: mail-core (MIME + plain/text/html + вложения), SMTP, DSL
