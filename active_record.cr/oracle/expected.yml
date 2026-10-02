@@ -1,0 +1,78 @@
+crud_new_record	true
+crud_new_changed	true
+crud_save	"true 3 true false \"spaced\" false false"
+crud_save_bang	true
+crud_save_invalid	"false nil false A[\"Title can't be blank\"]"
+crud_save_bang_invalid	raise:ActiveRecord::RecordInvalid
+crud_create	R:Post:body=nil id=5 published=false title="created" views=7
+crud_create_bang	6
+crud_create_invalid	"false true A[\"Title can't be blank\"]"
+crud_create_bang_invalid	raise:ActiveRecord::RecordInvalid
+crud_update_inst	"true \"upd\" \"upd\" 9"
+crud_update_invalid	"false \"upd\""
+crud_update_bang	"updbang"
+crud_update_class	1
+crud_update_class_bang	12
+crud_update_columns	"42 false"
+crud_update_class_missing	raise:ActiveRecord::RecordNotFound
+crud_touch	"true \"later\""
+crud_reload	88
+crud_destroy	"true false [\"after_destroy\"]"
+crud_destroy_class	"true false"
+crud_delete_class	"1 false"
+crud_destroy_missing	raise:ActiveRecord::RecordNotFound
+crud_destroy_frozen	true
+crud_destroy_returns_self_attrs	"11 \"gone\""
+ts_on_create	"true true"
+ts_on_update	"true false"
+dirty_loaded_clean	false
+dirty_attr_changed	true
+dirty_attr_was	"updbang"
+dirty_changes	H{"views"=>A[88,99]}
+dirty_changed_list	A["views"]
+dirty_same_value	false
+dirty_will_save	true
+dirty_after_save	"false H{\"updated_at\"=>A[T,T],\"views\"=>A[88,123]} true"
+dirty_new_record_changes	H{"title"=>A[nil,"n"],"views"=>A[0,1]}
+cb_save_order	A["before_validation","before_save","after_create"]
+cb_update_order	A["before_validation","before_save","after_update"]
+cb_destroy_order	A["after_destroy"]
+cb_cancel_chain	"false false"
+val_valid	true
+val_presence	"false A[\"Name can't be blank\"]"
+val_length	"false A[\"Bio is too long (maximum is 10 characters)\"]"
+val_numericality	"false A[\"Age must be greater than 0\"]"
+val_numericality_not_int	"skipped"
+val_format	"false A[\"Email is invalid\"]"
+val_uniqueness	"false A[\"Email has already been taken\"]"
+val_custom_block	"false A[\"Name is forbidden\"]"
+val_details	A[:blank]
+val_save_false	"false nil false"
+val_update_false	"false \"Ok\""
+val_multiple_errors	A["Name can't be blank","Age must be greater than 0","Bio is too long (maximum is 10 characters)"]
+assoc_has_many_count	2
+assoc_has_many_order	A["c1","c2"]
+assoc_ids	A[1,2]
+assoc_empty	true
+assoc_belongs_to	"updbang"
+assoc_belongs_to_id	1
+assoc_build	"true 2 2"
+assoc_create	"true 2 1"
+assoc_create_invalid	"false A[\"Body can't be blank\"]"
+assoc_shovel	"true 3"
+assoc_build_belongs	"true \"viapost\" nil"
+assoc_create_belongs	"false 16 \"viapost2\""
+assoc_dependent_destroy	"false 0"
+assoc_has_one	"nil true"
+assoc_has_one_create	"true \"p2\" 4"
+assoc_has_one_build	"true 5 1"
+assoc_has_one_replace	raise:ActiveRecord::RecordNotUnique
+assoc_has_one_dependent	"0"
+assoc_belongs_to_required	"true A[]"
+misc_exists	true
+misc_count	10
+misc_first_or_create	"false  \"first_or_create\""
+misc_first_or_create_twice	true
+misc_find_or_create_by	"true 1"
+misc_insert_all	"2"
+misc_upsert	2

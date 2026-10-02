@@ -7,6 +7,12 @@ require "active_support_cr"
 require "./connection"
 require "./relation"
 require "./base"
+require "./callbacks"
+require "./validations"
+require "./associations"
+require "./persistence"
+require "./migrations"
+require "./schema_dumper"
 
 module ActiveRecord
   VERSION = "0.1.0"

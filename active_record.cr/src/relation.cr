@@ -12,6 +12,7 @@ module ActiveRecord
     @orders = [] of String
     @limit_value : Int64? = nil
     @offset_value : Int64? = nil
+    @where_hash = {} of String => ActiveRecord::Value
 
     def initialize(@model : T.class)
     end
@@ -19,11 +20,18 @@ module ActiveRecord
     protected def initialize(@model : T.class, @wheres : Array(String),
                              @args : Array(DB::Any), @orders : Array(String),
                              @limit_value : Int64?, @offset_value : Int64?)
+
+    end
+
+    protected def initialize(@model : T.class, @wheres : Array(String),
+                             @args : Array(DB::Any), @orders : Array(String),
+                             @limit_value : Int64?, @offset_value : Int64?,
+                             @where_hash : Hash(String, ActiveRecord::Value))
     end
 
     private def copy : Relation(T)
       Relation(T).new(@model, @wheres.dup, @args.dup, @orders.dup,
-        @limit_value, @offset_value)
+        @limit_value, @offset_value, @where_hash.dup)
     end
 
     private def quote(col : String) : String
@@ -48,18 +56,22 @@ module ActiveRecord
       opts.each do |key, value|
         col = quote(key.to_s)
         case value
-        when Nil
-          r.@wheres << "#{col} IS NULL"
         when Range
           r.@wheres << "#{col} BETWEEN ? AND ?"
           r.@args << value.begin.as(DB::Any) << value.end.as(DB::Any)
-        when Array
-          return r if value.empty?
-          r.@wheres << "#{col} IN (#{value.map { "?" }.join(", ")})"
-          value.each { |v| r.@args << v.as(DB::Any) }
         else
-          r.@wheres << "#{col} = ?"
-          r.@args << value.as(DB::Any)
+          stored = value.is_a?(Int32) ? value.to_i64 : value
+          r.@where_hash[key.to_s] = stored.as(ActiveRecord::Value)
+          if value.nil?
+            r.@wheres << "#{col} IS NULL"
+          elsif value.is_a?(Array)
+            return r if value.empty?
+            r.@wheres << "#{col} IN (#{value.map { "?" }.join(", ")})"
+            value.each { |v| r.@args << v.as(DB::Any) }
+          else
+            r.@wheres << "#{col} = ?"
+            r.@args << value.as(DB::Any)
+          end
         end
       end
       r
@@ -121,12 +133,12 @@ module ActiveRecord
 
     def limit(n : Int) : Relation(T)
       Relation(T).new(@model, @wheres.dup, @args.dup, @orders.dup,
-        n.to_i64, @offset_value)
+        n.to_i64, @offset_value, @where_hash.dup)
     end
 
     def offset(n : Int) : Relation(T)
       Relation(T).new(@model, @wheres.dup, @args.dup, @orders.dup,
-        @limit_value, n.to_i64)
+        @limit_value, n.to_i64, @where_hash.dup)
     end
 
     def reverse_order : Relation(T)
@@ -140,7 +152,18 @@ module ActiveRecord
         end
       end
       Relation(T).new(@model, @wheres.dup, @args.dup, orders,
-        @limit_value, @offset_value)
+        @limit_value, @offset_value, @where_hash.dup)
+    end
+
+    # Finds the first record matching the where-conditions or creates one
+    # from those conditions merged with `values`.
+    def first_or_create(values : Hash(String, ActiveRecord::Value) = {} of String => ActiveRecord::Value) : T
+      found = first
+      return found if found
+      record = model.new
+      record.assign_attributes(@where_hash.merge(values))
+      record.save
+      record
     end
 
     # --- SQL building ---

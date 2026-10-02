@@ -53,7 +53,7 @@ describe "ActiveRecord read API (fixtures)" do
     it "exposes attributes hash and []" do
       post = Post.new(title: "x")
       post.attributes["title"].should eq("x")
-      post["views"].should be_nil # defaults are not applied to new records (read-slice)
+      post["views"].should eq(0_i64) # schema defaults ARE applied to new records (activerecord semantics)
     end
   end
 
@@ -223,7 +223,7 @@ describe "ActiveRecord on the datalake (read-only)" do
     Player.__column_names.should contain("coach_external_ids")
     player = Player.new(external_id: "ext-1", first_name: "A", last_name: "B")
     player.gender.should be_nil
-    player.coach_external_ids.should be_nil
+    player.coach_external_ids.should eq([] of Int64) # schema default applied (activerecord semantics)
     player.inspect.should start_with("#<Player id: nil, external_id: \"ext-1\"")
   end
 

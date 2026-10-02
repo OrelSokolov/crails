@@ -52,7 +52,7 @@ def pluralize(word : String) : String
 end
 
 CLASS_NAME = ARGV[0]? || abort "codegen_runner: class name argument required"
-TABLE = pluralize(underscore(CLASS_NAME))
+TABLE = (ARGV[1]? && !ARGV[1].empty?) ? ARGV[1] : pluralize(underscore(CLASS_NAME))
 SCHEMA_PATH = ENV["CRAILS_SCHEMA"]? || "db/schema.yml"
 
 def crystal_type(udt : String) : String
@@ -88,7 +88,7 @@ RESERVED_PARAMS = %w(
   with yield
 )
 
-cols = [] of {name: String, type: String, bool: Bool, kw_ok: Bool}
+cols = [] of {name: String, type: String, bool: Bool, kw_ok: Bool, default: String}
 
 if File.exists?(SCHEMA_PATH)
   schema = YAML.parse(File.read(SCHEMA_PATH))
@@ -97,12 +97,37 @@ if File.exists?(SCHEMA_PATH)
   table["columns"].as_a.each do |c|
     name = c["name"].as_s
     next if name == "id"
+    type = c["type"].as_s
     cols << {
-      name:  name,
-      type:  crystal_type(c["type"].as_s),
-      bool:  c["type"].as_s == "bool",
-      kw_ok: !RESERVED_PARAMS.includes?(name),
+      name:    name,
+      type:    crystal_type(type),
+      bool:    type == "bool",
+      kw_ok:   !RESERVED_PARAMS.includes?(name),
+      default: default_literal(type, c["default"]?.try(&.as_s?)),
     }
+  end
+end
+
+# Column default → Crystal literal (nil when unparsable). Keeps `changed?`
+# honest for new records: Post.new(views: 1).changes → {"views"=>[0, 1]}.
+def default_literal(type : String, default : String?) : String
+  return "nil" if default.nil? || default.empty?
+  d = default.strip
+  quoted = d.match(/\A'(.*)'::/) || d.match(/\A'(.*)'\z/)
+  raw = quoted ? quoted[1] : d
+  case type
+  when "int2", "int4", "int8"
+    raw.match(/\A-?\d+\z/) ? "#{raw}_i64" : "nil"
+  when "float4", "float8"
+    raw.match(/\A-?\d+(\.\d+)?\z/) ? raw : "nil"
+  when "bool"
+    raw == "true" ? "true" : raw == "false" ? "false" : "nil"
+  when "json", "jsonb"
+    raw == "[]" ? "JSON.parse(\"[]\")" : raw == "{}" ? "JSON.parse(\"{}\")" : "nil"
+  when "timestamp", "timestamptz", "date"
+    "nil" # CURRENT_TIMESTAMP-ish defaults are not portable literals
+  else
+    "nil"
   end
 end
 
@@ -111,7 +136,7 @@ code << "def self.__column_names : Array(String)"
 code << "  #{names.inspect}"
 code << "end"
 
-code << "ar_codegen(#{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
+code << "ar_codegen(#{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}, #{c[:default]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
 
 code << "def to_param : String"
 code << "  id.to_s"

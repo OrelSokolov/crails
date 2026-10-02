@@ -9,18 +9,76 @@ module ActiveRecord
   class RecordNotFound < Exception
   end
 
+  class RecordInvalid < Exception
+    getter record
+
+    def initialize(@record : Base)
+      super("Validation failed: #{@record.errors.full_messages.join(", ")}")
+    end
+  end
+
+  class RecordNotSaved < Exception
+  end
+
+  class RecordNotUnique < Exception
+  end
+
   MODELS = [] of TypeNode
+
+  # Compile-time registry of `set_table_name` overrides, filled by the macro.
+  # (Constants defined in subclasses are not yet visible from `macro finished`,
+  # so a registry is used instead of a `__TABLE_NAME__` constant lookup.)
+  TABLE_OVERRIDES = [] of Nil
 
   class Base
     macro inherited
       {% ActiveRecord::MODELS << @type %}
     end
 
+    # Explicit table name override (before codegen):
+    #   class LegacyPost < ActiveRecord::Base
+    #     set_table_name "posts"
+    #   end
+    macro set_table_name(name)
+      {% ActiveRecord::TABLE_OVERRIDES << {@type.name.stringify, name} %}
+    end
+
     property id : Int64?
     property? new_record = true
+    property? destroyed = false
+
+    # Errors from the last validation run (see validations.cr).
+    property errors = Errors.new
+
+    @original_attributes : Hash(String, Value)?
+    @previous_changes : Hash(String, Tuple(Value, Value)) = {} of String => Tuple(Value, Value)
 
     def persisted? : Bool
-      !new_record?
+      !new_record? && !destroyed?
+    end
+
+    # dirty API ------------------------------------------------------------
+    # `changes` etc. live in persistence.cr; they compare `attributes`
+    # against the snapshot taken on load/save (`@original_attributes`).
+
+    def __original_attributes : Hash(String, Value)
+      @original_attributes || {} of String => Value
+    end
+
+    def __snapshot_original! : Nil
+      @original_attributes = attributes.dup
+    end
+
+    def __previous_changes! (changes) : Nil
+      @previous_changes = changes
+    end
+
+    def saved_changes : Hash(String, Tuple(Value, Value))
+      @previous_changes
+    end
+
+    def has_changes_to_save? : Bool
+      changed?
     end
 
     def ==(other : self) : Bool
@@ -34,10 +92,10 @@ module ActiveRecord
     # Attribute codegen from schema.yml (called with string column names
     # so PostgreSQL keywords like `until` stay 1:1 — def names are built
     # at the AST level and never re-parsed).
-    # cols: [["name", "CrystalType", is_bool?], ...]
+    # cols: [["name", "CrystalType", is_bool?, kw_ok?, default_lit], ...]
     macro ar_codegen(cols)
       {% for c in cols %}
-        @{{c[0].id}} : {{c[1].id}}?
+        @{{c[0].id}} : {{c[1].id}}? = {{c[4]}}
 
         def {{c[0].id}} : {{c[1].id}}?
           @{{c[0].id}}
@@ -52,9 +110,25 @@ module ActiveRecord
             !!@{{c[0].id}}
           end
         {% end %}
+
+        def {{c[0].id}}_was : ::ActiveRecord::Value
+          changed_attribute?({{c[0]}}) ? __original_attributes[{{c[0]}}] : @{{c[0].id}}.as(::ActiveRecord::Value)
+        end
+
+        def {{c[0].id}}_changed? : Bool
+          attribute_changed?({{c[0]}}, @{{c[0].id}})
+        end
+
+        def will_save_change_to_{{c[0].id}}? : Bool
+          {{c[0].id}}_changed?
+        end
+
+        def {{c[0].id}}_previously_changed? : Bool
+          saved_changes.has_key?({{c[0]}})
+        end
       {% end %}
 
-      def initialize(*, {% for c in cols %} {% if c[3] %} {{c[0].id}} : {{c[1].id}}? = nil, {% end %} {% end %})
+      def initialize(*, {% for c in cols %} {% if c[3] %} {{c[0].id}} : {{c[1].id}}? = {{c[4]}}, {% end %} {% end %})
         {% for c in cols %}
           {% if c[3] %}@{{c[0].id}} = {{c[0].id}}{% end %}
         {% end %}
@@ -64,9 +138,15 @@ module ActiveRecord
         record = new
         record.id = rs.read(Int64?)
         {% for c in cols %}
-          record.{{c[0].id}} = rs.read({{c[1].id}}?)
+          {% if c[1] == "Int64" %}
+            # int2/int4 columns decode as Int32 — widen to Int64
+            record.{{c[0].id}} = rs.read(Int32 | Int64 | Nil).try(&.to_i64)
+          {% else %}
+            record.{{c[0].id}} = rs.read({{c[1].id}}?)
+          {% end %}
         {% end %}
         record.new_record = false
+        record.__snapshot_original!
         record
       end
 
@@ -101,6 +181,16 @@ module ActiveRecord
           end
         end
       end
+
+      def self.__column_defaults : Hash(String, ActiveRecord::Value)
+        defaults = {} of String => ActiveRecord::Value
+        {% for c in cols %}
+          {% unless c[4] == "nil" %}
+            defaults[{{c[0]}}] = {{c[4].id}}.as(ActiveRecord::Value)
+          {% end %}
+        {% end %}
+        defaults
+      end
     end
   end
 
@@ -109,9 +199,16 @@ module ActiveRecord
     {% for t in ActiveRecord::MODELS %}
       {% unless t.abstract? %}
         {% class_name = t.name.split("::").last %}
+        {% custom_table = nil %}
+        {% for pair in ActiveRecord::TABLE_OVERRIDES %}
+          {% if pair[0] == t.name.stringify %}
+            {% custom_table = pair[1] %}
+          {% end %}
+        {% end %}
+        {% table_arg = custom_table || "" %}
         {% runner = __DIR__ + "/codegen_runner.cr" %}
         class ::{{ t.stringify.id }}
-          {{ run(runner, class_name).id }}
+          {{ run(runner, class_name, table_arg).id }}
 
           def self.all : ::ActiveRecord::Relation(self)
             ::ActiveRecord::Relation(self).new(self)
@@ -202,6 +299,74 @@ module ActiveRecord
 
           def self.find_each(batch_size : Int32 = 1000, & : self ->) : Nil
             all.find_each(batch_size) { |record| yield record }
+          end
+
+          # --- hook runners assembled from prefixed methods -----------------
+          def __run_validations : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("validation__") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_before_validation : Bool
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("before_validation__cb_") %}
+                return false unless {{ m.name.id }}
+              {% end %}
+            {% end %}
+            true
+          end
+
+          def __run_before_save : Bool
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("before_save__cb_") %}
+                return false unless {{ m.name.id }}
+              {% end %}
+            {% end %}
+            true
+          end
+
+          def __run_before_destroy : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("before_destroy__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_create : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_create__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_update : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_update__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_save : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_save__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_destroy : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_destroy__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_dependents : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("dependent__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
           end
         end
       {% end %}

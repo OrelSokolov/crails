@@ -719,3 +719,55 @@ posts:
     type: timestamp
     nullable: 'NO'
     default:
+authors:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('authors_id_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: 'NO'
+    default:
+  - name: email
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: bio
+    type: text
+    nullable: 'YES'
+    default:
+  - name: age
+    type: int4
+    nullable: 'YES'
+    default:
+  - name: created_at
+    type: timestamp
+    nullable: 'NO'
+    default:
+  - name: updated_at
+    type: timestamp
+    nullable: 'NO'
+    default:
+profiles:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('profiles_id_seq'::regclass)
+  - name: author_id
+    type: int8
+    nullable: 'NO'
+    default:
+  - name: nickname
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: created_at
+    type: timestamp
+    nullable: 'NO'
+    default:
+  - name: updated_at
+    type: timestamp
+    nullable: 'NO'
+    default:
