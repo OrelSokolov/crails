@@ -19,12 +19,18 @@
 - [x] `crails new/server/routes/watch`, роутер, контроллер, ECR, консоль
 - [x] bench `000-hello`: ~142k RPS / 16 MB RSS / старт 10 мс (vs Rails 233 / 110 MB / 950 мс)
 
-### Iteration 1 — active_support.cr 🔄 (срез: blank?/present?/try, Inflector)
-- [ ] тест-кейсы с оригинального activesupport (portable подмножество)
-- [ ] core_ext P0: Object/String/Hash/Array/Enumerable/Numeric
-- [ ] Duration (`2.days.ago`), дата-математика, `Time.zone`/TimeWithZone
-- [ ] `Concern`, `delegate`, `Notifications`
-- [ ] `Cache` (memory+file), I18n (yml), `NumberHelper`
+### Iteration 1 — active_support.cr ✅ (2026-10-02)
+Тест-first: oracle/cases.rb (189 кейсов) снят с настоящего activesupport
+8.1.4 → oracle/expected.yml; оригинальные минитесты rails/rails v8.1.4 —
+в oracle/rails-tests/. 226 спеков зелёные. Задокументированные
+отклонения: sec..weeks остаются Time::Span (затенение Int#minutes ломает
+stdlib); String→Symbol в рантайме невозможен (symbolize_keys —
+идентичность, I18n-локали — String); `included do` → `macro included`.
+- [x] тест-кейсы с оригинального activesupport (portable подмножество)
+- [x] core_ext P0: Object/String/Hash/Array/Enumerable/Numeric
+- [x] Duration (`2.days`), дата-математика, `Time.zone`/TimeWithZone (минимум)
+- [x] `Concern`, `delegate`, `Notifications`
+- [x] `Cache` (memory+file), I18n (yml), `NumberHelper`
 
 ### Iteration 2 — active_record.cr 🔄 (read-срез готов: кодоген атрибутов,
 Relation-чтение, подключение — 29 спеков на реальной БД)
