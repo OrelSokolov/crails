@@ -68,7 +68,7 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 
 ### Iteration 5 — хвост стека (порядок по необходимости)
 - [~] action_mailer.cr — P0+deliver_later готовы (оракул 28 кейсов 30/30, SMTP-диалог против фейк-сервера; P1 хвост: .with/observers/previews)
-- [ ] active_storage.cr (blob/variants через libvips, диск+S3)
+- [~] active_storage.cr — P0 готов (оракул 27 кейсов 29/29: Disk-сервис, Blob/Attachment на AR, has_one_attached, purge; variants/S3/Mirror — P1)
 - [ ] action_text.cr (sanitize через lexbor)
 - [ ] action_mailbox.cr
 

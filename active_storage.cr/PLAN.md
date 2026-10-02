@@ -45,6 +45,29 @@
 - `ActiveStorage::Current.url_options` — fiber-local.
 - Утиная типизация attachable (7 форм в Rails) → перегрузки/union.
 
+## Статус (Iteration 5 — P0 готов)
+
+- Oracle: `oracle/cases.rb` → `oracle/expected.yml`, 27 кейсов сняты с
+  activestorage 8.1.4 (SQLite in-memory, Disk-сервис; blob create/find/
+  checksum/content-type-предикаты/filename sanitize, attach/detach/purge,
+  has_one_attached). Зеркало: `spec/oracle_spec.cr` — 29/29 (27 оракул +
+  mirrors-check + юнит purge).
+- Реализовано: `filename.cr` (sanitized: пробелы сохраняются, `/`\`\\`
+  → `--`), `service.cr` (DiskService upload/download/exist?/delete +
+  Checksum md5_base64 через OpenSSL), `blob.cr` (AR-модель с
+  `set_table_name`, `create_and_upload!`, key — 24 символа [A-Za-z0-9],
+  image?/video?/audio? и пр., purge), `attached.cr` (Attached::One:
+  attach/attached?/blob/download/filename/detach/purge + макрос
+  `has_one_attached` через reopen `ActiveRecord::Base`).
+- Отклонения от Rails (сознательные, P1+): signed_id — Rails-специфика
+  (HMAC-схема) — своя реализация P1; сервис-реестр для P0 — один
+  именованный Disk-сервис (`Blob.services`); S3/Mirror/variants/preview/
+  direct upload — P1+. Фикстурные таблицы blobs/attachments несут
+  `updated_at` (AR-порт пишет оба timestamp при insert безусловно; у
+  Rails storage-таблиц их нет).
+- Спеки шарда запускаются `crystal spec` из корня шарда — кодеген AR
+  подхватывает `db/schema.yml`.
+
 ## Фазы
 
 - P0: Disk-сервис, has_one_attached/has_many_attached, attach/attached?/
