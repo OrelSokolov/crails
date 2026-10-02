@@ -66,10 +66,15 @@
   явного CTE — passthrough (без QP); from/to читаются массивами;
   1 формат → single part, 2 → multipart/alternative, аттачи →
   multipart/mixed сверху.
-- Не в P0 (зафиксировано): deliver_later (P1, через active_job.cr),
-  parameterized .with, inline attachments, observers/interceptors,
-  previews, i18n-subject, QP/base64 тела, sendmail/file методы,
-  STARTTLS.
+- Не в P0 (зафиксировано): parameterized .with, inline attachments,
+  observers/interceptors, previews, i18n-subject, QP/base64 тела,
+  sendmail/file методы, STARTTLS.
+- deliver_later (P1) — готов: `MessageDelivery#deliver_later(wait:)`
+  энкуит `MailDeliveryJob` (queue :mailers) через active_job_cr с
+  аргументами Rails 8.1 1:1 (`[mailer, action, "deliver_now",
+  {"args" => [...], "_aj_ruby2_keywords" => ["args"]}]`); оракул
+  расширен до 28 кейсов (dl_*: класс джобы, аргументы, отсутствие
+  доставки, scheduled). Спек: 30/30.
 
 ## Фазы
 

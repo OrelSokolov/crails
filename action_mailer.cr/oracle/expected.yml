@@ -22,3 +22,7 @@ att_names	["report.txt"]
 att_decoded	["ATTACH DATA"]
 att_cte	["7bit"]
 att_mime	["text/plain"]
+dl_job_class	ActionMailer::MailDeliveryJob
+dl_args	["BenchMailer", "welcome_email", "deliver_now", {"args" => ["bob@example.com"], "_aj_ruby2_keywords" => ["args"]}]
+dl_no_delivery	2
+dl_scheduled	true

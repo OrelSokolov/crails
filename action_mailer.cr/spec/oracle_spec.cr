@@ -64,6 +64,8 @@ UNI     = BenchMailer.unicode_email("bob@example.com")
 ATT     = BenchMailer.with_attachment("bob@example.com")
 HDR     = BenchMailer.custom_headers("bob@example.com")
 
+ADAPTER = ActiveJob.adapter.as(ActiveJob::TestAdapter)
+
 CASES = {
   # --- DSL ---
   "dsl_from"           => -> { WELCOME.message.from.inspect },
@@ -94,6 +96,11 @@ CASES = {
   "att_decoded"   => -> { ATT.message.attachments.map(&.decoded).inspect },
   "att_cte"       => -> { ATT.message.attachments.map(&.content_transfer_encoding).inspect },
   "att_mime"      => -> { ATT.message.attachments.map(&.mime_type).inspect },
+  # --- deliver_later (ActiveJob test adapter: enqueue, no delivery) ---
+  "dl_job_class"  => -> { BenchMailer.welcome_email("bob@example.com").deliver_later; ADAPTER.enqueued_jobs.last.job_class },
+  "dl_args"       => -> { ADAPTER.enqueued_jobs.last.arguments.inspect },
+  "dl_no_delivery" => -> { ActionMailer::Base.deliveries.size.to_s },
+  "dl_scheduled"  => -> { BenchMailer.welcome_email("bob@example.com").deliver_later(wait: 5.minutes); ADAPTER.enqueued_jobs.last.scheduled_at ? "true" : "false" },
 }
 
 describe "action_mailer oracle (actionmailer 8.1.4 + mail 2.9.1)" do

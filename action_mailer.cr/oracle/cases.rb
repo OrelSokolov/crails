@@ -15,10 +15,15 @@ gem "actionmailer", "= 8.1.4"
 gem "activesupport", "= 8.1.4"
 gem "actionpack", "= 8.1.4"
 gem "actionview", "= 8.1.4"
+gem "activejob", "= 8.1.4"
 require "action_mailer"
+require "active_job/test_helper"
 
 ActionMailer::Base.delivery_method = :test
 ActionMailer::Base.perform_deliveries = true
+ActiveJob::Base.logger = nil
+# deliver_later goes through the ActiveJob test adapter (enqueue only)
+ActiveJob::Base.queue_adapter = :test
 
 TEST_MAILER = ActionMailer::Base.delivery_method
 class BenchMailer < ActionMailer::Base
@@ -115,3 +120,19 @@ case_run("att_names")     { ATT.message.attachments.map(&:filename) }
 case_run("att_decoded")   { ATT.message.attachments.map(&:decoded) }
 case_run("att_cte")       { ATT.message.attachments.map(&:content_transfer_encoding) }
 case_run("att_mime")      { ATT.message.attachments.map(&:mime_type) }
+
+# --- deliver_later (ActiveJob test adapter: enqueue, no delivery) ----
+case_run("dl_job_class") do
+  BenchMailer.welcome_email("bob@example.com").deliver_later
+  ActiveJob::Base.queue_adapter.enqueued_jobs.last[:job].name
+end
+case_run("dl_args") do
+  ActiveJob::Base.queue_adapter.enqueued_jobs.last[:args].inspect
+end
+case_run("dl_no_delivery") do
+  ActionMailer::Base.deliveries.size
+end
+case_run("dl_scheduled") do
+  BenchMailer.welcome_email("bob@example.com").deliver_later(wait: 5.minutes)
+  ActiveJob::Base.queue_adapter.enqueued_jobs.last[:at] ? true : false
+end
