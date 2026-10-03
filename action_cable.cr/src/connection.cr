@@ -5,6 +5,9 @@
 #                     reject_subscription | {identifier, message}
 #   client → server: {command: subscribe|message|unsubscribe,
 #                     identifier, data?}
+#
+# Outgoing frames go through CorkWriter (P1.5): batched into one
+# write per flush cycle; stdlib auto-pongs serialize via LockedImageIO.
 
 module ActionCable
   class Connection
@@ -12,7 +15,10 @@ module ActionCable
 
     PING_INTERVAL = 3.seconds
 
-    def initialize(@ws : HTTP::WebSocket, @server : Server)
+    def initialize(@io : IO, @server : Server)
+      @iolock = Mutex.new
+      @ws = HTTP::WebSocket.new(LockedImageIO.new(@io, @iolock), sync_close: false)
+      @writer = CorkWriter.new(@io, @iolock)
       @subscriptions = {} of String => Channel::Base
       @closed = false
     end
@@ -23,6 +29,7 @@ module ActionCable
         @closed = true
         @subscriptions.each_value(&.unsubscribe_from_channel)
         @subscriptions.clear
+        @writer.close # drain what is left, then stop the writer fiber
       end
       send_welcome
       spawn_ping_loop
@@ -43,6 +50,29 @@ module ActionCable
 
     def pubsub : SubscriptionAdapter::Base
       @server.pubsub
+    end
+
+    # --- fast-path subscription seam (P1.5) ---------------------------
+    def subscribe_stream(stream : String, identifier : String) : Nil
+      @server.pubsub.subscribe_fast(stream, self, identifier)
+    end
+
+    def unsubscribe_stream(stream : String) : Nil
+      @server.pubsub.unsubscribe_fast(stream, self)
+    end
+
+    def dropped_messages : Int32
+      @writer.dropped_messages
+    end
+
+    # Fast-path delivery: prebuilt envelope bytes from the adapter.
+    def deliver_text(text : String) : Nil
+      return if @closed
+      @writer.deliver_text(text)
+    end
+
+    def buffered_amount : Int32
+      @writer.buffered_amount
     end
 
     # --- protocol ----------------------------------------------------
@@ -118,7 +148,10 @@ module ActionCable
 
     private def send_json(payload : Hash(String, CableValue)) : Nil
       return if @closed
-      @ws.send(payload.to_json)
+      @writer.deliver_text(payload.to_json)
     end
   end
 end
+
+require "http/web_socket"
+require "./cork_writer"

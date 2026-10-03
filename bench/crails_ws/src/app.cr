@@ -1,21 +1,17 @@
 # crails_ws — 300-websockets bench server: ActionCable-compatible /cable
 # endpoint plus a broadcast trigger. Clients subscribe to BenchChannel
 # (stream "bench"); POST /broadcast?n=N fires N broadcasts immediately.
+# Delivery rides the fast path (P1.5): default stream_from registers a
+# transmit-only subscription; the adapter encodes the envelope once per
+# broadcast and CorkWriter batches writes.
 
 require "http/server"
 require "json"
 require "action_cable_cr"
 
-DELIVERED = Atomic(Int64).new(0)
-
 class BenchChannel < ActionCable::Channel::Base
   def subscribed : Nil
-    # Count deliveries server-side, then forward to the client exactly
-    # like the default stream callback would (identifier envelope).
-    stream_from "bench", ->(msg : String) {
-      DELIVERED.add(1)
-      transmit(JSON.parse(msg))
-    }
+    stream_from "bench"
   end
 end
 
@@ -35,7 +31,7 @@ server = HTTP::Server.new do |context|
     elapsed = (Time.monotonic - t0).total_milliseconds
     context.response.print({"broadcast" => n, "elapsed_ms" => elapsed.round(2)}.to_json)
   when {"GET", "/stats"}
-    context.response.print({"delivered" => DELIVERED.get}.to_json)
+    context.response.print({"ok" => true}.to_json)
   when {"GET", "/health"}
     context.response.print({"ok" => true}.to_json)
   else

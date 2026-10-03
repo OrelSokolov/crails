@@ -22,6 +22,16 @@ module ActionCable
     abstract def identifiers : Array(Symbol)
     abstract def transmit(cable : Hash(String | Symbol, CableValue)) : Nil
     abstract def pubsub : SubscriptionAdapter::Base
+
+    # Fast-path seam (P1.5): only reached when the pubsub adapter
+    # advertises fast_broadcasts? — implemented by the real connection.
+    def subscribe_stream(stream : String, identifier : String) : Nil
+      raise NotImplementedError.new("subscribe_stream requires the WS connection layer")
+    end
+
+    def unsubscribe_stream(stream : String) : Nil
+      raise NotImplementedError.new("unsubscribe_stream requires the WS connection layer")
+    end
   end
 
   module Channel
@@ -32,6 +42,7 @@ module ActionCable
       getter? unsubscribed = false
 
       @streams = {} of String => Proc(String, Nil)
+      @fast_streams = [] of String
       @subscription_rejected = false
 
       def initialize(@connection : ConnectionAPI, @identifier : String,
@@ -61,9 +72,17 @@ module ActionCable
       end
 
       def stream_from(broadcasting : String, callback : Proc(String, Nil)? = nil) : Nil
-        cb = callback || default_stream_callback
-        @streams[broadcasting] = cb
-        connection.pubsub.subscribe(broadcasting, cb)
+        # Fast path (P1.5): a transmit-only subscription registers
+        # (connection, identifier) with the adapter so a broadcast can
+        # encode the envelope once and fan out prebuilt bytes.
+        if callback.nil? && connection.pubsub.fast_broadcasts?
+          @fast_streams << broadcasting
+          connection.subscribe_stream(broadcasting, @identifier)
+        else
+          cb = callback || default_stream_callback
+          @streams[broadcasting] = cb
+          connection.pubsub.subscribe(broadcasting, cb)
+        end
       end
 
       def stop_all_streams : Nil
@@ -71,11 +90,15 @@ module ActionCable
           connection.pubsub.unsubscribe(name, cb)
         end
         @streams.clear
+        @fast_streams.each do |name|
+          connection.unsubscribe_stream(name)
+        end
+        @fast_streams.clear
       end
 
       # Probe surface for the private Ruby #streams hash (name → callback).
       def stream_names : Array(String)
-        @streams.keys
+        @streams.keys + @fast_streams
       end
 
       def transmit(data : CableValue) : Nil

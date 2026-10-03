@@ -7,6 +7,31 @@ module ActionCable
   # JSON::Any covers decoded broadcast/stream payloads.
   alias CableValue = String | Int32 | Int64 | Float64 | Bool | Nil | JSON::Any | Array(CableValue) | Hash(String | Symbol, CableValue)
 
+  # Cable envelope for stream delivery: {"identifier":…,"message":…}.
+  # Built once per broadcast per unique identifier (encode-once, the uWS
+  # TopicTree "palette" analog): a payload that is already valid JSON is
+  # embedded as-is — same JSON value, no parse→dump round trip.
+  def self.envelope_json(identifier : String, message : String) : String
+    String.build do |io|
+      io << %({"identifier":)
+      identifier.to_json(io)
+      io << %(,"message":)
+      if valid_json?(message)
+        io << message
+      else
+        message.to_json(io)
+      end
+      io << "}"
+    end
+  end
+
+  def self.valid_json?(message : String) : Bool
+    JSON.parse(message)
+    true
+  rescue JSON::ParseException
+    false
+  end
+
   module Internal
     MESSAGE_TYPES = {
       :welcome      => "welcome",

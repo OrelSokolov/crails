@@ -19,6 +19,18 @@ module ActionCable
 
       def shutdown : Nil
       end
+
+      # Fast-path support (P1.5): adapters that can fan out prebuilt
+      # envelopes (see Async) override this and the *_fast pair below.
+      def fast_broadcasts? : Bool
+        false
+      end
+
+      def subscribe_fast(channel : String, connection : Connection, identifier : String) : Nil
+      end
+
+      def unsubscribe_fast(channel : String, connection : Connection) : Nil
+      end
     end
 
     class Test < Base
