@@ -1,6 +1,7 @@
 require "railties_cr"
 require "active_record_cr"
 require "./cable"
+require "./live"
 
 require "../config/application"
 require "../app/models/note"

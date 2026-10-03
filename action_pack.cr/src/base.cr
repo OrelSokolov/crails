@@ -89,14 +89,14 @@ module ActionController
       response.print json
     end
 
-    def render(plain : String? = nil, html : String? = nil, status = 200) : Nil
+    def render(plain : String? = nil, html : String? = nil, status = 200, content_type : String? = nil) : Nil
       @performed = true
       response.status_code = status_code(status)
       if body = plain
-        response.headers["Content-Type"] = "text/plain; charset=utf-8"
+        response.headers["Content-Type"] = content_type || "text/plain; charset=utf-8"
         response.print body
       elsif body = html
-        response.headers["Content-Type"] = "text/html; charset=utf-8"
+        response.headers["Content-Type"] = content_type || "text/html; charset=utf-8"
         response.print body
       else
         raise ArgumentError.new("render needs plain: or html:")

@@ -1,0 +1,8 @@
+<div class="lv-card">
+  <div class="lv-num" data-count="<%= @count %>"><%= @count %></div>
+  <div class="lv-controls">
+    <button class="btn primary" phx-click="incr">+1</button>
+    <button class="btn" phx-click="decr">−1</button>
+  </div>
+  <div class="lv-meta">handle_info «tick» раз в секунду: <span data-ticks="<%= @ticks %>"><%= @ticks %></span></div>
+</div>

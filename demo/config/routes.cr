@@ -16,4 +16,7 @@ CRails.application.routes.draw do
   post "/profile", to: "users#update"
 
   get "/chat", to: "chat#index", as: "chat"
+
+  get "/live", to: "live#index", as: "live"
+  get "/live_assets/:file", to: "live#asset"
 end

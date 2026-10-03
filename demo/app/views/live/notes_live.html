@@ -1,0 +1,14 @@
+<div class="lv-card">
+  <form phx-submit="create" class="lv-form">
+    <input type="text" name="note[title]" placeholder="Заголовок заметки" required>
+    <input type="text" name="note[body]" placeholder="Текст (необязательно)">
+    <button class="btn primary" type="submit">Создать</button>
+  </form>
+  <div class="lv-status" data-status="<%= @last_created %>"><%= @last_created %></div>
+  <ul class="lv-list" data-count="<%= @titles.size %>">
+    <%= lv_each(@titles) do |title| %>
+      <li><%= title %></li>
+    <% end %>
+  </ul>
+  <button class="btn" phx-click="refresh">Обновить список</button>
+</div>

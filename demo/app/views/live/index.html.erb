@@ -1,0 +1,74 @@
+<div class="hero">
+  <h1>LiveView на CRails</h1>
+  <p>Stateful-вьюхи на сервере поверх fiber'ов: события ходят по WebSocket
+     (Phoenix Channels-протокол), DOM морфит официальный
+     <code>phoenix_live_view.js</code>. Серверная часть — наш
+     <code>live_view.cr</code>.</p>
+</div>
+
+<div class="lv-grid">
+  <div class="lv-slot">
+    <h2>Счётчик</h2>
+    <div id="<%= @counter_id %>" data-phx-session="<%= @counter_token %>" data-phx-static="">
+      <div class="lv-card"><div class="lv-num">…</div></div>
+    </div>
+  </div>
+  <div class="lv-slot">
+    <h2>Живой список заметок</h2>
+    <div id="<%= @notes_id %>" data-phx-session="<%= @notes_token %>" data-phx-static="">
+      <div class="lv-card">…</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .lv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 800px) { .lv-grid { grid-template-columns: 1fr; } }
+  .lv-slot h2 { font-size: 1.05rem; margin-bottom: 10px; color: var(--muted); }
+  .lv-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 22px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .lv-num { font-size: 3rem; font-weight: 700; text-align: center; color: var(--accent); }
+  .lv-controls { display: flex; gap: 10px; justify-content: center; }
+  .lv-meta { text-align: center; color: var(--faint); font-size: 0.85rem; }
+  .lv-form { display: flex; gap: 8px; }
+  .lv-form input[type="text"] {
+    flex: 1; background: #fbfcfe; border: 1px solid var(--card-border); border-radius: 9px;
+    padding: 10px 12px; font-size: 0.93rem; font-family: inherit; color: var(--text);
+  }
+  .lv-form input:focus { outline: none; border-color: var(--accent); }
+  .lv-status { color: var(--ok); font-size: 0.87rem; min-height: 1.2em; }
+  .lv-list { margin: 0 0 0 18px; color: var(--text); font-size: 0.95rem; line-height: 1.7; }
+</style>
+
+<% content_for :page_js do %>
+<script src="/live_assets/phoenix.min.js"></script>
+<script src="/live_assets/phoenix_live_view.min.js"></script>
+<script>
+  let liveSocket = new LiveView.LiveSocket("/live", Phoenix.Socket);
+  liveSocket.connect();
+  window.liveSocket = liveSocket;
+  // e2e self-test hook: /live?autotest=1 clicks +1 once the view has
+  // mounted and re-checks the patched DOM. Each fetch holds headless
+  // virtual time while real ws round trips complete.
+  if (new URLSearchParams(location.search).has("autotest")) {
+    (async () => {
+      const probe = (i) => fetch("/live_assets/phoenix.min.js?i=" + i);
+      for (let i = 0; i < 300; i++) {
+        await probe(i);
+        if (document.querySelector("[data-count]")) break;
+      }
+      document.querySelector("[phx-click=incr]").click();
+      for (let i = 0; i < 300; i++) {
+        await probe("c" + i);
+        if (document.querySelector("[data-count]").getAttribute("data-count") === "1") {
+          document.title = "E2E_OK";
+          return;
+        }
+      }
+      document.title = "E2E_FAIL";
+    })();
+  }
+</script>
+<% end %>

@@ -3,8 +3,9 @@
 class Application < CRails::Application
   # Mount the ActionCable endpoint: Rails' `mount ActionCable.server => "/cable"`.
   def call(context : HTTP::Server::Context) : Nil
-    if context.request.path == "/cable"
-      DEMO_CABLE.ws_handler.call(context)
+    case context.request.path
+    when "/cable"          then DEMO_CABLE.ws_handler.call(context)
+    when "/live/websocket" then DEMO_LIVE.call(context)
     else
       super
     end
