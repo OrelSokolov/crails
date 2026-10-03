@@ -25,6 +25,8 @@ module ActiveRecord
     @readonly_flag = false
     @strict_flag = false
     @includes_values = [] of String
+    @eager_load_values = [] of String
+    @references_values = [] of String
 
     def initialize(@model : T.class)
     end
@@ -52,7 +54,9 @@ module ActiveRecord
                              @lock_clause : String? = nil,
                              @readonly_flag : Bool = false,
                              @strict_flag : Bool = false,
-                             @includes_values : Array(String) = [] of String)
+                             @includes_values : Array(String) = [] of String,
+                             @eager_load_values : Array(String) = [] of String,
+                             @references_values : Array(String) = [] of String)
     end
 
     private def copy : Relation(T)
@@ -60,7 +64,8 @@ module ActiveRecord
         @limit_value, @offset_value, @where_hash.dup, @groups.dup,
         @havings.dup, @having_args.dup, @distinct_flag, @none_flag,
         @joins.dup, @annotation, @select_values.try(&.dup), @lock_clause,
-        @readonly_flag, @strict_flag, @includes_values.dup)
+        @readonly_flag, @strict_flag, @includes_values.dup,
+        @eager_load_values.dup, @references_values.dup)
     end
 
     # Crystal forbids `r.@ivar = value` on another instance: chainable
@@ -75,11 +80,13 @@ module ActiveRecord
                         lock_clause = @lock_clause,
                         readonly_flag = @readonly_flag,
                         strict_flag = @strict_flag,
-                        includes_values = @includes_values) : Relation(T)
+                        includes_values = @includes_values,
+                        eager_load_values = @eager_load_values,
+                        references_values = @references_values) : Relation(T)
       Relation(T).new(@model, wheres, args, orders, limit_value, offset_value,
         where_hash, groups, havings, having_args, distinct_flag, none_flag,
         joins, annotation_text, select_values, lock_clause, readonly_flag,
-        strict_flag, includes_values)
+        strict_flag, includes_values, eager_load_values, references_values)
     end
 
     private def quote(col : String) : String
@@ -386,6 +393,18 @@ module ActiveRecord
       includes(*names)
     end
 
+    # Rails eager_load: materialize with a single LEFT OUTER JOIN query
+    # (has_many/belongs_to; other kinds fall back to lazy loading).
+    def eager_load(*names : String | Symbol) : Relation(T)
+      rebuild(eager_load_values: @eager_load_values + names.to_a.map(&.to_s))
+    end
+
+    # Rails references: forces includes(…) of the referenced tables to use
+    # the single-query eager_load strategy.
+    def references(*names : String | Symbol) : Relation(T)
+      rebuild(references_values: @references_values + names.to_a.map(&.to_s))
+    end
+
     def explain : String
       sql, args = build_sql(select_list, @orders.empty? ? [] of String : @orders)
       plan = [] of String
@@ -534,6 +553,29 @@ module ActiveRecord
 
     def each(& : T ->) : Nil
       return if @none_flag
+      # eager_load strategy: one LEFT OUTER JOIN query (explicit, or the
+      # includes+references switch — Rails semantics).
+      eager_name = @eager_load_values.first?
+      unless eager_name
+        @includes_values.each do |i|
+          if (tbl = T.__assoc_table(i)) && @references_values.includes?(tbl)
+            eager_name = i
+            break
+          end
+        end
+      end
+      if eager_name
+        records = T.__eager_load(eager_name, @wheres, @args, @orders,
+          @limit_value, @offset_value)
+        records.each do |record|
+          record.readonly = @readonly_flag
+          record.strict_loading = @strict_flag
+        end
+        rest = (@includes_values + @eager_load_values).reject { |n| n == eager_name }
+        rest.each { |assoc| T.__preload_assoc(assoc, records) }
+        records.each { |record| yield record }
+        return
+      end
       names = @select_values || model.__column_names
       sql, args = build_sql(select_list, @orders.empty? ? [] of String : @orders)
       records = [] of T

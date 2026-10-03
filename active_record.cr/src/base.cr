@@ -612,6 +612,14 @@ module ActiveRecord
             all.includes(*names)
           end
 
+          def self.eager_load(*names : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.eager_load(*names)
+          end
+
+          def self.references(*names : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.references(*names)
+          end
+
           def self.take : self?
             all.take
           end
@@ -779,6 +787,93 @@ module ActiveRecord
             {% end %}
             end
             nil
+          end
+
+          # Eager loading with a single LEFT OUTER JOIN query
+          # (Relation#eager_load; also the includes+references switch).
+          def self.__eager_load(name : String, wheres : Array(String),
+                                 args : Array(DB::Any), orders : Array(String),
+                                 limit : Int64?, offset : Int64?) : Array(self)
+            case name
+            {% for a in ActiveRecord::ASSOCIATIONS %}
+              {% if a[0] == t.name.stringify && (a[2] == "has_many" || a[2] == "belongs_to") %}
+              when {{a[1]}} then
+                otable = table_name.gsub('"', "")
+                ctable = {{a[3]}}.table_name.gsub('"', "")
+                opk = primary_key
+                cpk = {{a[3]}}.primary_key
+                owner_names = __column_names
+                child_names = {{a[3]}}.__column_names
+                select_parts = owner_names.map { |c| %("#{otable}"."#{c}") } +
+                               child_names.map { |c| %("#{ctable}"."#{c}" AS "c_#{c}") }
+                {% if a[2] == "has_many" %}
+                  join = %(LEFT OUTER JOIN "#{ctable}" ON "#{ctable}".{{a[4]}} = "#{otable}"."#{opk}")
+                {% else %}
+                  join = %(LEFT OUTER JOIN "#{ctable}" ON "#{ctable}"."#{cpk}" = "#{otable}".{{a[4]}})
+                {% end %}
+                counter = 0
+                where_sql = wheres.map { |w| w.gsub(/\?/) { counter += 1; "$#{counter}" } }.join(" AND ")
+                qorders = orders.map do |o|
+                  o.starts_with?('"') && !o.includes?('.') ? %("#{otable}".#{o}) : o
+                end
+                sql = String.build do |io|
+                  io << "SELECT " << select_parts.join(", ") << " FROM " << %("#{otable}")
+                  io << " " << join
+                  io << " WHERE " << where_sql unless where_sql.empty?
+                  io << " ORDER BY " << qorders.join(", ") unless qorders.empty?
+                  io << " LIMIT " << limit if limit
+                  io << " OFFSET " << offset if offset
+                end
+                records = [] of self
+                index = {} of Int64 => self
+                groups = {} of Int64 => Array(::ActiveRecord::Base)
+                ::ActiveRecord::Base.__session.query(sql, args: args) do |rs|
+                  rs.each do
+                    owner = __read_row(rs, owner_names)
+                    child = {{a[3]}}.__read_row(rs, child_names)
+                    if (oid = owner.id) && (dup = index[oid]?)
+                      owner = dup
+                    else
+                      records << owner
+                      index[oid] = owner if oid
+                    end
+                    if cid = child.id
+                      {% if a[2] == "has_many" %}
+                        if oid = owner.id
+                          (groups[oid] ||= [] of ::ActiveRecord::Base) << child
+                        end
+                      {% else %}
+                        owner.__cache_assoc({{a[1]}}, child)
+                      {% end %}
+                    end
+                  end
+                end
+                {% if a[2] == "has_many" %}
+                  records.each do |o|
+                    if oid = o.id
+                      o.__set_loaded_assoc({{a[1]}}, groups[oid]? || [] of ::ActiveRecord::Base)
+                    end
+                  end
+                {% end %}
+                records
+              {% end %}
+            {% end %}
+            else
+              all.to_a
+            end
+          end
+
+          # Association name → target table name (includes+references switch).
+          def self.__assoc_table(name : String) : String?
+            case name
+            {% for a in ActiveRecord::ASSOCIATIONS %}
+              {% if a[0] == t.name.stringify && (a[2] == "has_many" || a[2] == "belongs_to") %}
+              when {{a[1]}} then {{a[3]}}.table_name
+              {% end %}
+            {% end %}
+            else
+              nil
+            end
           end
 
           # enum emission (getter overrides the skipped codegen one)

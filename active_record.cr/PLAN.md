@@ -10,12 +10,12 @@
 > - ⬜ не начато
 > - ❌ Crystal не позволит / осознанное отклонение (эквивалент указан)
 
-**Статус (2026-10-03): 239/239 спеков зелёные (oracle: crud/dirty/callbacks/
+**Статус (2026-10-03): 248/248 спеков зелёные (oracle: crud/dirty/callbacks/
 validations/associations/transactions/relation §2/persistence §6/proxy §5/
 P1-хвост/P2 (through, polymorphic, HABTM, counter_cache/touch/inverse_of,
-includes/preload, optimistic locking, STI, enum/store/alias_attribute/
-attr_readonly/cache_key/has_secure_token, nested attributes) + migrations).
-P0–P2 закрыты; остатки — см. «Порядок оставшихся работ».**
+includes/preload, eager_load/references, optimistic locking, STI, enum/store/
+alias_attribute/attr_readonly/cache_key/has_secure_token, nested attributes)
++ migrations). P0–P2 закрыты; остатки — см. «Порядок оставшихся работ».**
 
 ## Ключевой механизм
 
@@ -77,7 +77,7 @@ Rails генерит методы атрибутов в рантайме (`defin
 | `group, having, distinct` | ✅ | |
 | `select, reselect` | 🔶 | простые колонки (append/reselect); отклонения: незагруженный атрибут → nil (Rails: MissingAttributeError), raw-SQL фрагменты нельзя материализовать в записи |
 | `joins, left_outer_joins` | ✅ | конвенция has_many/has_one FK |
-| `includes, preload, eager_load, references` | 🔶 | `includes`/`preload` ✅: IN-запросы по PK, прелоад из памяти (each/count/size/ids/pluck), счётчик запросов (`__query_count`) оракул-сверен — ровно 2 запроса; eager_load/references ⬜; полиморфные/through-ассоциации в includes — лениво (по одному запросу на запись-владельца не делается) |
+| `includes, preload, eager_load, references` | ✅ | includes/preload: IN-запросы, прелоад из памяти, счётчик запросов оракул-сверен; eager_load: один LEFT OUTER JOIN-запрос (has_many с дедупликацией владельцев + belongs_to), columns алиасятся `AS c_<col>`; `references(:table)` переключает `includes` на eager_load-стратегию (Rails-семантика); полиморфные/through-ассоциации — лениво |
 | `reorder, in_order_of` | ✅ | ARRAY_POSITION |
 | `update_all, delete_all, destroy_all, touch_all` | ✅ | на уровне Relation и класса |
 | `none, except/only, annotate, explain` | ✅ | explain → String (в Rails ExplainProxy) |
@@ -174,10 +174,9 @@ Rails генерит методы атрибутов в рантайме (`defin
 
 ## Порядок оставшихся работ
 
-1. **Хвост P2** (опционально): `eager_load/references` (LEFT JOIN),
-   `serialize`, опция `autosave:`/`primary_key:`/`validate:` у ассоциаций,
-   belongs_to-форма nested attributes, `to_param`, полиморфные/through
-   в includes.
+1. **Хвост P2** (опционально): `serialize`, опции `autosave:`/`primary_key:`/
+   `validate:` у ассоциаций, belongs_to-форма nested attributes, `to_param`,
+   полиморфные/through в includes/eager_load.
 
 ## Готово, когда
 

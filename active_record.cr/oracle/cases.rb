@@ -1303,3 +1303,36 @@ case_run("p5_nested_invalid") do
   a = NAuthor.create(name: "NA5", n_posts_attributes: [{ title: "waytoolong" }])
   "#{a.persisted?} #{NAuthor.where(name: "NA5").count} #{a.errors.full_messages.inspect}"
 end
+
+# --- P2: eager_load (single LEFT OUTER JOIN query) + references -------------
+case_run("p2_eager_load_hm") do
+  a = TAuthor.create!(name: "EL1")
+  TPost.create!(title: "ep1", t_author: a)
+  TPost.create!(title: "ep2", t_author: a)
+  TAuthor.create!(name: "EL2") # no posts
+  qc do
+    authors = TAuthor.where(name: ["EL1", "EL2"]).eager_load(:t_posts).order(:name).to_a
+    "#{authors.size} #{authors.map { |x| x.t_posts.map(&:title).sort }.inspect} #{authors.map(&:name).inspect}"
+  end
+end
+
+case_run("p2_eager_load_bt") do
+  qc do
+    posts = TPost.where(title: ["ep1", "ep2"]).eager_load(:t_author).order(:title).to_a
+    "#{posts.size} #{posts.map { |p| p.t_author.name }.uniq.inspect}"
+  end
+end
+
+case_run("p2_eager_load_where") do
+  qc do
+    posts = TPost.eager_load(:t_author).where("authors.name = ?", "EL1").order("posts.title").to_a
+    "#{posts.size} #{posts.map(&:title).inspect} #{posts.map { |p| p.t_author.name }.uniq.inspect}"
+  end
+end
+
+case_run("p2_eager_load_references") do
+  qc do
+    posts = TPost.where("authors.name = ?", "EL1").includes(:t_author).references(:authors).order(:title).to_a
+    "#{posts.size} #{posts.map { |p| p.t_author.name }.uniq.inspect}"
+  end
+end
