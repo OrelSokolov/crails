@@ -48,6 +48,36 @@ Rememberable: signed cookie + токен-таблица.
 `saml`, test-helpers (`sign_in user` в тестах — P1), `devise-otp` и
 прочие сторонние расширения.
 
+## Статус (Iteration 6 — P0 готов, oracle 26/26 + юниты 11, итого 37/37)
+
+- Оракул: `oracle/cases.rb` → `expected.yml` — standalone-харнесс devise
+  4.9.4 (AR sqlite), 26 кейсов, повторный прогон DETERMINISTIC. Зеркало
+  `spec/oracle_spec.cr` проходит 26/26 без правки кейсов.
+- Модель: макрос `devise` (src/models.cr) на AR::Base — виртуальные
+  password/password_confirmation, `valid_password?`,
+  `update_with/without_password`, валидации validation__devise_* (AR-раннер),
+  uniqueness через `WHERE LOWER(email) = LOWER(?)`, rememberable
+  (authenticatable_salt = ep[0,29], serialize_into/from_cookie),
+  registerable (перехват new/create/create! с password-до-save).
+- Encryptor: bcrypt (stdlib) с pepper, **byte-compatible с gem'ом**
+  (Ruby-хэши rehash-ятся идентично; verified). Отклонение: Crystal-bcrypt
+  не хэширует ровно 72 байта (внутр. NUL) → обрезаем до 71 (Ruby до 72);
+  различается только пароль ровно в 72 байта.
+- Sessions (`src/sessions.cr`): Warden-замена — sign_in/out/signed_in?,
+  current_user, authenticate + flash-строки devise en.yml. HTTP-интеграция
+  (cookie-сессии action_pack) — P1.
+- JWT (`src/jwt.cr`, наш модуль — в Rails его нет): HS256 через
+  OpenSSL::HMAC, access {sub,iat,exp,jti} + opaque refresh
+  (SHA256-хэш в devise_refresh_tokens), ротация с ревоком,
+  TokenInvalid/TokenExpired. Кросс-чек: ruby-jwt-токен декодируется
+  тем же secret (фикстура в spec).
+- Юниты: `spec/sessions_jwt_spec.cr` — 11 кейсов (flash, session store,
+  roundtrip, tamper, wrong secret, expired, кросс-декод, ротация+ревок).
+
+**Не в P0 (см. Фазы):** recoverable/confirmable/trackable/lockable/
+timeoutable + Devise::Mailer — P1; HTTP-роуты `devise_for`/контроллеры —
+P1 (вместе с railties-сессиями); omniauthable — P2.
+
 ## Фазы
 
 - P0: database_authenticatable + registerable + validatable +

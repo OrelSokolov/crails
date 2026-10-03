@@ -73,8 +73,8 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 - [~] action_mailbox.cr — P0 готов (оракул 29 кейсов 29/29: InboundEmail + raw_email blob, Router String/Regex/:all, lifecycle статусов, before_processing с bounced!-haltом; ingress/incinerate — P1)
 
 ### Iteration 6 — devise.cr + минимальные гемы
-- [ ] Devise-совместимая аутентификация
-- [ ] JWT: access+refresh ротация (API/PWA/сервис-токены)
+- [~] Devise-совместимая аутентификация (P0 готов: oracle 26 кейсов 26/26 devise 4.9.4 + юниты 11; bcrypt byte-compatible с pepper; sessions = Warden-замена; recoverable/confirmable/HTTP-роуты — P1)
+- [x] JWT: access+refresh ротация (API/PWA/сервис-токены) (HS256 OpenSSL, opaque refresh + ревок, кросс-чек с ruby-jwt)
 - [ ] rails_hello — интеграционное приложение на полном стеке
 
 ## Фаза 2 — продакшен-готовность (порядок: 7 → 11 → 12 → 15)
