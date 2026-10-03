@@ -1,0 +1,48 @@
+html_h1	<h1>Funny times!</h1>
+html_script	<div onclick="action()">safe<script>unsafe()</script></div>
+html_br	line1<br>line2
+html_entity	&lt;script&gt;alert()&lt;/script&gt;
+html_empty	
+html_strip	<p>x</p>
+html_list	<ul><li>one</li><li>two</li></ul>
+html_inline	<strong>bold</strong> and <em>it</em>
+html_newline	<h1>a</h1>\n<p>b</p>
+pt_h1	Funny times!
+pt_div_script	safe
+pt_blocks	T\n\nP
+pt_divs	d1\nd2
+pt_br	a\nb
+pt_ul	• one\n• two
+pt_ol	1. a\n2. b
+pt_nested_ul	• a\n  • b
+pt_blockquote	“quoted”
+pt_bq_empty	“”
+pt_figcaption	[cap]
+pt_entity	<script>alert()</script>
+pt_style	text
+pt_mixed	Doc\n\nline\ntail
+pt_empty	
+links_basic	["http://example.com/"]
+links_uniq	["http://a.io/", "https://b.io/x"]
+links_none	[]
+sz_script	<div>safeunsafe()\n</div>
+sz_kept	<h1>Keep</h1><b>b</b>
+sz_bad_tag	xy
+sz_href	<a href="http://e.com/">L</a>
+ser_dump	<b>x</b>
+ser_dump_nil	nil
+ser_load	<b>x</b>
+ser_load_nil	nil
+ser_roundtrip	r
+rt_plain	Funny times!
+rt_present	true
+rt_row	["content", "Message", true, "<h1>Funny times!</h1>"]
+rt_body_db	<h1>Funny times!</h1>
+rt_reload	Funny times!
+rt_update	["Updated bold", 1]
+rt_absent	false
+rt_blank_body	false
+rt_entity	<script>alert()</script>
+rt_to_s	<div class="trix-content">\n  <h1>Funny times!</h1>\n</div>\n
+rt_to_s_div	<div class="trix-content">\n  <div>d</div>\n</div>\n
+rt_to_s_san	<div class="trix-content">\n  <div>safeu()\n</div>\n</div>\n

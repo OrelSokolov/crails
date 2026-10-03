@@ -1,0 +1,9 @@
+---
+name: action_text_cr
+version: 0.1.0
+crystal: ">= 1.21.0"
+dependencies:
+  active_record_cr:
+    path: ../active_record.cr
+  lexbor:
+    github: kostya/lexbor
