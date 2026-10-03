@@ -70,7 +70,7 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 - [~] action_mailer.cr — P0+deliver_later готовы (оракул 28 кейсов 30/30, SMTP-диалог против фейк-сервера; P1 хвост: .with/observers/previews)
 - [~] active_storage.cr — P0 готов (оракул 27 кейсов 29/29: Disk-сервис, Blob/Attachment на AR, has_one_attached, purge; variants/S3/Mirror — P1)
 - [~] action_text.cr — P0 готов (оракул 48 кейсов 48/48: lexbor-фрагменты, plain-text, safe-list sanitize + trix-layout, RichText/has_rich_text с autosave; аттачменты/sgid — P1)
-- [ ] action_mailbox.cr
+- [~] action_mailbox.cr — P0 готов (оракул 29 кейсов 29/29: InboundEmail + raw_email blob, Router String/Regex/:all, lifecycle статусов, before_processing с bounced!-haltом; ingress/incinerate — P1)
 
 ### Iteration 6 — devise.cr + минимальные гемы
 - [ ] Devise-совместимая аутентификация
