@@ -1,6 +1,6 @@
 <% note = @note.not_nil! %>
 <a class="backlink" href="/notes">← Все заметки</a>
-<div class="article c-<%= note.color_class %>">
+<div class="panel wide article c-<%= note.color_class %>">
   <span class="strip"></span>
   <h1><%= note.title %></h1>
   <div class="meta">
@@ -9,7 +9,11 @@
   </div>
   <div class="body"><%= note.body %></div>
   <div class="actions">
-    <span></span>
-    <%= button_to "Удалить", "/notes/#{note.id}/destroy", class: "button danger" %>
+    <form action="/notes/<%= note.id %>/destroy" method="post">
+      <button type="submit" class="btn danger" data-confirm="Удалить заметку «<%= note.title %>»?">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h14M8 6V4h4v2m-7 0 1 11h8l1-11M8.5 9.5v5M11.5 9.5v5"/></svg>
+        Удалить
+      </button>
+    </form>
   </div>
 </div>

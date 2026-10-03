@@ -1,0 +1,16 @@
+<div class="panel" style="max-width: 440px; margin: 4vh auto">
+  <h1>Вход</h1>
+  <div class="sub">Пароли хранит devise.cr — bcrypt с pepper, как в Rails.</div>
+  <form action="/login" method="post" class="stack">
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" name="email" id="email" value="<%= @email %>" placeholder="you@example.com" autofocus />
+    </div>
+    <div class="field">
+      <label for="password">Пароль</label>
+      <input type="password" name="password" id="password" placeholder="••••••••" />
+    </div>
+    <button type="submit" class="btn primary">Войти</button>
+  </form>
+  <div class="auth-alt">Нет аккаунта? <a href="/signup">Зарегистрируйтесь</a></div>
+</div>

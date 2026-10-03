@@ -1,0 +1,40 @@
+<% user = @user %>
+<div class="panel" style="max-width: 520px">
+  <h1>Профиль</h1>
+  <div class="sub">Смена email или пароля — через update_with_password из devise.cr:
+     нужен текущий пароль, новый пароль остаётся пустым — пароль не меняется.</div>
+<% if user && !user.errors.empty? %>
+  <div class="errors">
+    Не получилось сохранить:
+    <ul>
+    <% user.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+<% end %>
+  <form action="/profile" method="post" class="stack">
+    <div class="field">
+      <label for="name">Имя</label>
+      <input type="text" name="name" id="name" value="<%= user.try(&.name).to_s %>" />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" name="email" id="email" value="<%= user.try(&.email).to_s %>" />
+    </div>
+    <div class="field">
+      <label for="current_password">Текущий пароль</label>
+      <input type="password" name="current_password" id="current_password" placeholder="обязательно для сохранения" />
+    </div>
+    <div class="field">
+      <label for="password">Новый пароль</label>
+      <input type="password" name="password" id="password" placeholder="оставьте пустым, чтобы не менять" />
+      <div class="hint">Минимум 6 символов</div>
+    </div>
+    <div class="field">
+      <label for="password_confirmation">Повтор нового пароля</label>
+      <input type="password" name="password_confirmation" id="password_confirmation" />
+    </div>
+    <button type="submit" class="btn primary">Сохранить</button>
+  </form>
+</div>

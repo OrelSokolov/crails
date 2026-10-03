@@ -1,0 +1,66 @@
+<div class="hero" style="margin-bottom: 20px">
+  <h1>Чат с ботом <span style="color: var(--faint); font-weight: 400; font-size: .6em">через WebSocket</span></h1>
+  <p>Соединение живёт на <code>/cable</code> — ActionCable-порте на Crystal.
+     Напишите число, бот ответит его квадратом. Регистрация не нужна.</p>
+</div>
+<div class="chat-wrap panel wide" style="padding: 0; overflow: hidden">
+  <div class="chat-log" id="log">
+    <div class="msg sys" id="status"><span class="dot-online"></span>&nbsp;подключение…</div>
+  </div>
+  <form class="chat-form" id="form">
+    <input type="text" id="input" placeholder="Например: 12 или 3.5" autocomplete="off" autofocus />
+    <button type="submit" class="btn primary">Отправить</button>
+  </form>
+</div>
+<% provide :page_js do %>
+<script>
+  (function () {
+    var IDENT = JSON.stringify({channel: "ChatChannel"});
+    var log = document.getElementById("log");
+    var status = document.getElementById("status");
+    var input = document.getElementById("input");
+    var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/cable");
+
+    function add(kind, text) {
+      var row = document.createElement("div");
+      row.className = "msg " + kind;
+      var who = document.createElement("span");
+      who.className = "who";
+      who.textContent = kind === "user" ? "я" : "бот";
+      var bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      row.appendChild(who); row.appendChild(bubble);
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function send(payload) {
+      ws.send(JSON.stringify(payload));
+    }
+
+    ws.onopen = function () {
+      send({command: "subscribe", identifier: IDENT});
+      status.innerHTML = '<span class="dot-online on"></span>&nbsp;соединение установлено';
+    };
+    ws.onclose = function () {
+      status.innerHTML = '<span class="dot-online"></span>&nbsp;соединение потеряно — обновите страницу';
+    };
+    ws.onmessage = function (event) {
+      var frame = JSON.parse(event.data);
+      var msg = frame.message;
+      if (!msg || !msg.text) return;
+      add(msg.from === "bot" ? "bot" : "user", msg.text);
+    };
+    document.getElementById("form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var value = input.value.trim();
+      if (!value || ws.readyState !== 1) return;
+      add("user", value);
+      // action_cable протокол: data передаётся JSON-строкой
+      send({command: "message", identifier: IDENT, data: JSON.stringify({action: "square", number: value})});
+      input.value = "";
+    });
+  })();
+</script>
+<% end %>

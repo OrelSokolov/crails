@@ -1,4 +1,34 @@
 ---
+users:
+  columns:
+  - name: id
+    type: int8
+    nullable: "NO"
+    default: nextval('users_id_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: "YES"
+    default:
+  - name: email
+    type: varchar
+    nullable: "YES"
+    default:
+  - name: encrypted_password
+    type: varchar
+    nullable: "YES"
+    default:
+  - name: remember_created_at
+    type: timestamp
+    nullable: "YES"
+    default:
+  - name: created_at
+    type: timestamp
+    nullable: "NO"
+    default:
+  - name: updated_at
+    type: timestamp
+    nullable: "NO"
+    default:
 notes:
   columns:
   - name: id

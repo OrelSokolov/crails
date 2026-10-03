@@ -1,0 +1,35 @@
+<% user = @user %>
+<div class="panel" style="max-width: 460px; margin: 4vh auto">
+  <h1>Регистрация</h1>
+  <div class="sub">Валидации — devise validatable: email-формат, уникальность, длина пароля 6–128.</div>
+<% if user && !user.errors.empty? %>
+  <div class="errors">
+    Проверьте поля:
+    <ul>
+    <% user.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+<% end %>
+  <form action="/signup" method="post" class="stack">
+    <div class="field">
+      <label for="name">Имя</label>
+      <input type="text" name="name" id="name" value="<%= user.try(&.name).to_s %>" placeholder="Олег" />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" name="email" id="email" value="<%= user.try(&.email).to_s %>" placeholder="you@example.com" />
+    </div>
+    <div class="field">
+      <label for="password">Пароль</label>
+      <input type="password" name="password" id="password" placeholder="минимум 6 символов" />
+    </div>
+    <div class="field">
+      <label for="password_confirmation">Повтор пароля</label>
+      <input type="password" name="password_confirmation" id="password_confirmation" />
+    </div>
+    <button type="submit" class="btn primary">Создать аккаунт</button>
+  </form>
+  <div class="auth-alt">Уже есть аккаунт? <a href="/login">Войти</a></div>
+</div>

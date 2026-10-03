@@ -28,8 +28,10 @@ module ActionController
     def delete(name : String) : Nil
       @jar.delete(name)
       response = @context.response
-      response.headers["Set-Cookie"] =
-        "#{name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      # append, not overwrite: several cookies (session + flash) may be
+      # set on the same response
+      response.headers.add("Set-Cookie",
+        "#{name}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT")
     end
 
     def has_key?(name : String) : Bool
@@ -48,7 +50,9 @@ module ActionController
     end
 
     private def write(name : String) : Nil
-      @context.response.headers["Set-Cookie"] = "#{name}=#{URI.encode_www_form(@jar[name])}; path=/"
+      # append, not overwrite: several cookies (session + flash) may be
+      # set on the same response
+      @context.response.headers.add("Set-Cookie", "#{name}=#{URI.encode_www_form(@jar[name])}; path=/")
     end
   end
 

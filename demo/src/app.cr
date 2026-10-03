@@ -1,8 +1,10 @@
 require "railties_cr"
 require "active_record_cr"
+require "./cable"
 
 require "../config/application"
 require "../app/models/note"
+require "../app/models/user"
 require "../app/controllers/**"
 require "../config/routes"
 require "../config/environments/development"
