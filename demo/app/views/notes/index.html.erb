@@ -1,0 +1,15 @@
+<div class="hero">
+  <h1>Заметки на CRails</h1>
+  <p>Мини-блог на порте Rails для Crystal: PostgreSQL + ActiveRecord-валидации,
+     ERB-шаблоны с партиалами, flash-сообщения и счётчик просмотров.
+     Создайте заметку — <code>POST /notes</code> попадёт в базу через весь стек.</p>
+</div>
+<% if @notes.empty? %>
+<div class="empty">
+  Пока пусто. <a href="/notes/new">Создайте первую заметку</a>.
+</div>
+<% else %>
+<div class="grid">
+<%= render partial: "note", collection: @notes %>
+</div>
+<% end %>

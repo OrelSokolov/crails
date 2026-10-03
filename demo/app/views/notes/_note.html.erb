@@ -1,0 +1,9 @@
+<a class="note-card c-<%= note.color_class %>" href="/notes/<%= note.id %>">
+  <span class="strip"></span>
+  <h3><%= note.title %></h3>
+  <div class="snippet"><%= note.snippet %></div>
+  <div class="meta">
+    <span><%= (note.created_at || Time.utc).to_s("%d.%m.%Y") %></span>
+    <span class="views">👁 <%= note.views %></span>
+  </div>
+</a>

@@ -1,0 +1,15 @@
+<% note = @note.not_nil! %>
+<a class="backlink" href="/notes">← Все заметки</a>
+<div class="article c-<%= note.color_class %>">
+  <span class="strip"></span>
+  <h1><%= note.title %></h1>
+  <div class="meta">
+    <span><%= (note.created_at || Time.utc).to_s("%d.%m.%Y") %></span>
+    <span><%= note.views %> просмотров</span>
+  </div>
+  <div class="body"><%= note.body %></div>
+  <div class="actions">
+    <span></span>
+    <%= button_to "Удалить", "/notes/#{note.id}/destroy", class: "button danger" %>
+  </div>
+</div>

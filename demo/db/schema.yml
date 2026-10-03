@@ -1,0 +1,37 @@
+---
+notes:
+  columns:
+  - name: id
+    type: int8
+    nullable: "NO"
+    default: nextval('notes_id_seq'::regclass)
+  - name: title
+    type: varchar
+    nullable: "NO"
+    default:
+  - name: body
+    type: text
+    nullable: "YES"
+    default:
+  - name: color
+    type: varchar
+    nullable: "YES"
+    default:
+  - name: views
+    type: int4
+    nullable: "NO"
+    default: "0"
+  - name: created_at
+    type: timestamp
+    nullable: "NO"
+    default:
+  - name: updated_at
+    type: timestamp
+    nullable: "NO"
+    default:
+schema_migrations:
+  columns:
+  - name: version
+    type: int8
+    nullable: "NO"
+    default:

@@ -1,0 +1,39 @@
+<% note = @note %>
+<a class="backlink" href="/notes">← Все заметки</a>
+<div class="article">
+  <h1>Новая заметка</h1>
+  <div class="meta">Валидации модели — как в Rails: presence и длину проверит active_record.cr</div>
+<% if note && !note.errors.empty? %>
+  <div class="errors" style="margin-top: 22px">
+    Не получилось сохранить:
+    <ul>
+    <% note.errors.full_messages.each do |msg| %>
+      <li><%= msg %></li>
+    <% end %>
+    </ul>
+  </div>
+<% end %>
+  <div style="height: 26px"></div>
+<% current_color = note.try(&.color.to_s) %>
+  <form action="/notes" accept-charset="UTF-8" method="post" class="stack">
+    <div class="field">
+      <label for="title">Заголовок</label>
+      <input type="text" name="title" id="title" value="<%= note.try(&.title).to_s %>" maxlength="140" placeholder="О чём заметка?" autofocus />
+    </div>
+    <div class="field">
+      <label for="body">Текст</label>
+      <textarea name="body" id="body" placeholder="Можно писать свободным текстом…"><%= note.try(&.body).to_s %></textarea>
+    </div>
+    <div class="field">
+      <label>Цвет</label>
+      <div class="swatches">
+        <label><input type="radio" name="color" value="amber" <%= current_color == "amber" ? "checked" : "" %> /><span class="sw sw-amber"></span></label>
+        <label><input type="radio" name="color" value="rose" <%= current_color == "rose" ? "checked" : "" %> /><span class="sw sw-rose"></span></label>
+        <label><input type="radio" name="color" value="sky" <%= (current_color.nil? || current_color == "sky") ? "checked" : "" %> /><span class="sw sw-sky"></span></label>
+        <label><input type="radio" name="color" value="emerald" <%= current_color == "emerald" ? "checked" : "" %> /><span class="sw sw-emerald"></span></label>
+        <label><input type="radio" name="color" value="violet" <%= current_color == "violet" ? "checked" : "" %> /><span class="sw sw-violet"></span></label>
+      </div>
+    </div>
+    <button type="submit" class="submit">Создать заметку</button>
+  </form>
+</div>

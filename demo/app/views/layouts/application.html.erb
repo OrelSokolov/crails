@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CRails Notes</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --bg-soft: #101731;
+        --card: #141d3a;
+        --card-hover: #182246;
+        --border: rgba(148, 163, 216, 0.14);
+        --text: #e8ecff;
+        --muted: #97a0c8;
+        --accent: #6c8cff;
+        --accent-2: #22d3ee;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background:
+          radial-gradient(1200px 600px at 80% -10%, rgba(108, 140, 255, 0.14), transparent 60%),
+          radial-gradient(900px 500px at -10% 110%, rgba(34, 211, 238, 0.10), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 28px;
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(8px);
+        position: sticky;
+        top: 0;
+        background: rgba(11, 16, 32, 0.8);
+        z-index: 10;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: -0.01em;
+        text-decoration: none;
+        color: var(--text);
+      }
+      .brand .dot {
+        width: 14px; height: 14px; border-radius: 4px;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        box-shadow: 0 0 18px rgba(108, 140, 255, 0.8);
+      }
+      .brand small { color: var(--muted); font-weight: 500; }
+      nav a {
+        color: var(--muted);
+        text-decoration: none;
+        margin-left: 22px;
+        font-size: 0.95rem;
+        transition: color 0.15s;
+      }
+      nav a:hover { color: var(--text); }
+      nav a.btn {
+        color: #081020;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        padding: 9px 18px;
+        border-radius: 10px;
+        font-weight: 600;
+      }
+      nav a.btn:hover { filter: brightness(1.1); color: #081020; }
+      main { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 36px 24px 64px; }
+      .flash {
+        max-width: 1080px;
+        margin: 18px auto -12px;
+        padding: 12px 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(52, 211, 153, 0.35);
+        background: rgba(52, 211, 153, 0.12);
+        color: #7ff0cd;
+        font-size: 0.95rem;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-align: center;
+        padding: 20px;
+      }
+      footer b { color: var(--text); }
+
+      .hero { margin-bottom: 34px; }
+      .hero h1 {
+        font-size: clamp(1.9rem, 4vw, 2.7rem);
+        letter-spacing: -0.03em;
+        background: linear-gradient(120deg, #fff, #b9c6ff);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .hero p { color: var(--muted); margin-top: 8px; max-width: 560px; line-height: 1.55; }
+      .hero code {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1px 7px;
+        font-size: 0.85em;
+        color: #a5f3fc;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 18px;
+      }
+      .note-card {
+        position: relative;
+        display: block;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px 22px 16px;
+        text-decoration: none;
+        color: var(--text);
+        overflow: hidden;
+        transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+      }
+      .note-card:hover { transform: translateY(-3px); background: var(--card-hover); border-color: rgba(148, 163, 216, 0.3); }
+      .note-card .strip { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+      .c-amber .strip { background: #fbbf24; } .c-rose .strip { background: #fb7185; }
+      .c-sky .strip { background: #38bdf8; } .c-emerald .strip { background: #34d399; }
+      .c-violet .strip { background: #a78bfa; }
+      .note-card h3 { font-size: 1.08rem; letter-spacing: -0.01em; margin-bottom: 8px; line-height: 1.35; }
+      .note-card .snippet { color: var(--muted); font-size: 0.9rem; line-height: 1.55; min-height: 2.6em; }
+      .note-card .meta {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+        color: var(--muted); font-size: 0.78rem;
+      }
+      .note-card .views { display: flex; align-items: center; gap: 5px; }
+
+      .empty {
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+        padding: 56px 24px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .empty a { color: var(--accent-2); }
+
+      .page { animation: rise 0.25s ease; }
+      @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+      .article {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 40px 44px;
+        position: relative;
+      }
+      .article .strip { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: 20px 0 0 20px; }
+      .article h1 { font-size: clamp(1.5rem, 3.5vw, 2.2rem); letter-spacing: -0.02em; margin-bottom: 14px; }
+      .article .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 26px; display: flex; gap: 18px; }
+      .article .body { line-height: 1.75; color: #cdd6f7; white-space: pre-wrap; font-size: 1.02rem; }
+      .article .actions {
+        margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border);
+        display: flex; justify-content: space-between; align-items: center;
+      }
+      .article .actions form { display: inline; }
+
+      a.button {
+        display: inline-block;
+        padding: 9px 18px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: 1px solid var(--border);
+        color: var(--text);
+        background: var(--bg-soft);
+        transition: all 0.15s;
+      }
+      a.button:hover { border-color: rgba(148, 163, 216, 0.4); }
+      a.button.danger {
+        color: #fda4af;
+        border-color: rgba(251, 113, 133, 0.35);
+        background: rgba(251, 113, 133, 0.08);
+      }
+      a.button.danger:hover { background: rgba(251, 113, 133, 0.16); }
+
+      form.stack { display: flex; flex-direction: column; gap: 20px; }
+      .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; font-weight: 600; letter-spacing: 0.02em; }
+      .field input[type="text"], .field textarea, .field select {
+        width: 100%;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--text);
+        padding: 13px 16px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      .field input:focus, .field textarea:focus, .field select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(108, 140, 255, 0.18);
+      }
+      .field textarea { min-height: 170px; resize: vertical; }
+      .field select option { background: var(--bg-soft); }
+      .swatches { display: flex; gap: 10px; }
+      .swatches label { position: relative; cursor: pointer; }
+      .swatches input { position: absolute; opacity: 0; }
+      .swatches .sw {
+        display: block;
+        width: 30px; height: 30px; border-radius: 9px;
+        border: 2px solid transparent;
+        transition: transform 0.12s, border-color 0.12s;
+      }
+      .swatches input:checked + .sw { border-color: #fff; transform: scale(1.12); }
+      .sw-amber { background: #fbbf24; } .sw-rose { background: #fb7185; }
+      .sw-sky { background: #38bdf8; } .sw-emerald { background: #34d399; }
+      .sw-violet { background: #a78bfa; }
+
+      .errors {
+        border: 1px solid rgba(251, 113, 133, 0.4);
+        background: rgba(251, 113, 133, 0.1);
+        color: #fda4af;
+        border-radius: 12px;
+        padding: 14px 18px;
+        font-size: 0.92rem;
+      }
+      .errors ul { margin-left: 18px; margin-top: 4px; }
+      .submit {
+        align-self: flex-start;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #081020;
+        font-weight: 700;
+        border: none;
+        border-radius: 12px;
+        padding: 13px 28px;
+        font-size: 0.98rem;
+        cursor: pointer;
+        transition: filter 0.15s, transform 0.1s;
+      }
+      .submit:hover { filter: brightness(1.1); }
+      .submit:active { transform: scale(0.98); }
+      .backlink { display: inline-block; color: var(--muted); text-decoration: none; margin-bottom: 18px; font-size: 0.9rem; }
+      .backlink:hover { color: var(--text); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/"><span class="dot"></span>CRails <small>Notes</small></a>
+      <nav>
+        <a href="/notes">Все заметки</a>
+        <a class="btn" href="/notes/new">+ Новая</a>
+      </nav>
+    </header>
+<% if notice = flash["notice"]? %>
+    <div class="flash"><%= notice %></div>
+<% end %>
+    <main>
+      <div class="page">
+        <%= yield %>
+      </div>
+    </main>
+    <footer>Собрано на <b>CRails</b> — порт Rails на Crystal: railties · action_pack · action_view · active_record</footer>
+  </body>
+</html>
