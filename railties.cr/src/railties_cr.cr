@@ -125,7 +125,7 @@ module CRails
 
     def boot(argv : Array(String)) : Nil
       case argv[0]? || "serve"
-      when "serve" then serve(argv[1..])
+      when "serve" then serve(argv.skip(1)) # skip(1), not [1..]: [][1..] raises
       when "routes" then print_routes
       else
         STDERR.puts "Usage: app [serve] [routes] [-p PORT] [-b HOST]"
