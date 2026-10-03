@@ -1,0 +1,9 @@
+root_page	200|text/html; charset=utf-8|<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset="utf-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1">\n    <title>CRails</title>\n  </head>\n  <body>\n    <h1>Hello from Rails</h1>\n<p>Served by SERVER.</p>\n\n  </body>\n</html>\n
+posts_index	200|text/html; charset=utf-8|<!DOCTYPE html>\n<html>\n  <head>\n    <meta charset="utf-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1">\n    <title>CRails</title>\n  </head>\n  <body>\n    <h1>Posts</h1>\n<ul class="posts">\n<li class="post" data-id="1"><span class="title">first post</span> <span class="views">3</span></li>\n<li class="post" data-id="2"><span class="title">second post</span> <span class="views">0</span></li>\n<li class="post" data-id="3"><span class="title">third &amp; &lt;post&gt;</span> <span class="views">42</span></li>\n\n</ul>\n<form action="/posts" accept-charset="UTF-8" method="post">\n  <input type="text" name="title" id="title" value="" placeholder="Title" />\n  <input type="submit" name="commit" value="Create" data-disable-with="Create" />\n</form>\n  </body>\n</html>\n
+posts_show_1	200|application/json; charset=utf-8|{"id":1,"title":"first post","views":3}
+posts_show_2	200|application/json; charset=utf-8|{"id":2,"title":"second post","views":0}
+posts_show_3_specials	200|application/json; charset=utf-8|{"id":3,"title":"third & <post>","views":42}
+posts_show_missing_404	404|ERROR_CT|ERROR_PAGE
+unknown_route_404	404|ERROR_CT|ERROR_PAGE
+posts_create	200|application/json; charset=utf-8|{"id":4}
+posts_created_fetch	200|application/json; charset=utf-8|{"id":4,"title":"bench-TS","views":0}

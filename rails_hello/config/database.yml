@@ -1,0 +1,13 @@
+# Picked up automatically at boot (DATABASE_URL overrides).
+# host starting with "/" is a unix socket directory.
+development:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_hello_test
+
+test:
+  adapter: postgresql
+  host: /var/run/postgresql
+  username: root
+  database: crails_hello_test

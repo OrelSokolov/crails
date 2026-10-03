@@ -50,7 +50,9 @@ Rails.application.configure do
   # config.i18n.raise_on_missing_translations = true
 
   # Annotate rendered view with file names.
-  config.action_view.annotate_rendered_view_with_filenames = true
+  # Off for the integration oracle: the CRails action_view port has no
+  # view annotations (dev-only Rails feature, no rendering semantics).
+  config.action_view.annotate_rendered_view_with_filenames = false
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true

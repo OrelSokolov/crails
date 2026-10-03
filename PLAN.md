@@ -75,7 +75,7 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 ### Iteration 6 — devise.cr + минимальные гемы
 - [~] Devise-совместимая аутентификация (P0 готов: oracle 26 кейсов 26/26 devise 4.9.4 + юниты 11; bcrypt byte-compatible с pepper; sessions = Warden-замена; recoverable/confirmable/HTTP-роуты — P1)
 - [x] JWT: access+refresh ротация (API/PWA/сервис-токены) (HS256 OpenSSL, opaque refresh + ревок, кросс-чек с ruby-jwt)
-- [ ] rails_hello — интеграционное приложение на полном стеке
+- [x] rails_hello — интеграционное приложение на полном стеке (1:1-зеркало bench/rails_hello: railties+action_pack+action_view+AR; HTTP-оракул 9 кейсов 9/9 против Rails 8.1.4; по ходу чинены action_pack status_code/render-CT и action_view Erubi-trim/form_tag)
 
 ## Фаза 2 — продакшен-готовность (порядок: 7 → 11 → 12 → 15)
 

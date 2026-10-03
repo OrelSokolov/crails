@@ -85,7 +85,7 @@ module ActionController
     def render(json : String, status = 200) : Nil
       @performed = true
       response.status_code = status_code(status)
-      response.headers["Content-Type"] = "application/json"
+      response.headers["Content-Type"] = "application/json; charset=utf-8"
       response.print json
     end
 
@@ -160,19 +160,19 @@ module ActionController
 
     private def status_code(status : Int32 | Symbol) : Int32
       case status
-      when Int32 then status
-      when .ok?                 then 200
-      when .created?            then 201
-      when .no_content?         then 204
-      when .moved_permanently?  then 301
-      when .found?              then 302
-      when .not_modified?       then 304
-      when .bad_request?        then 400
-      when .unauthorized?       then 401
-      when .forbidden?          then 403
-      when .not_found?          then 404
-      when .unprocessable_content? then 422
-      when .internal_server_error? then 500
+      when Int32                then status
+      when :ok                  then 200
+      when :created             then 201
+      when :no_content          then 204
+      when :moved_permanently   then 301
+      when :found               then 302
+      when :not_modified        then 304
+      when :bad_request         then 400
+      when :unauthorized        then 401
+      when :forbidden           then 403
+      when :not_found           then 404
+      when :unprocessable_content then 422
+      when :internal_server_error then 500
       else
         raise ArgumentError.new("unsupported status symbol: #{status}")
       end

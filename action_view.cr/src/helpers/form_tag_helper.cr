@@ -135,9 +135,12 @@ module ActionView
       def form_tag(url : String? = nil, **opts, &) : String
         opts = __av_opts_to_h(opts)
         method = (opts.delete("method") || "post").to_s
+        # Rails: authenticity_token: false drops the utf8 enrollment
+        # hidden field (and the CSRF token, which we never emit).
+        skip_enrollment = opts.delete("authenticity_token").== false
         __av_out(String.build do |io|
           io << %(<form action="#{HTML.escape(url.to_s)}" accept-charset="UTF-8"#{tag_options(opts)} method="post">)
-          io << UTF8_ENROLLMENT
+          io << UTF8_ENROLLMENT unless skip_enrollment
           io << %(<input type="hidden" name="_method" value="#{method}" autocomplete="off" />) unless method == "post"
         end)
         yield

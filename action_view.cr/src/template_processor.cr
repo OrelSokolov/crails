@@ -13,12 +13,10 @@
 
 path = ARGV[0]
 input = File.read(path)
-# Rails 8.1 (load_defaults) chomps exactly one trailing newline from
-# ERB ACTION-template sources (ActionView strip_trailing_newlines);
-# partials and layouts render verbatim. Callers pass "strip" for
-# action templates only (oracle-verified on partials: items in a
-# collection keep their trailing newline).
-input = input.chomp if ARGV[1]? == "strip"
+# Rails renders template sources verbatim (no whole-file chomp) — the
+# only newline suppression is Erubi's trim: a newline directly after a
+# CODE tag `<% ... %>` is removed (oracle: rails_hello root_page keeps
+# the trailing text newline; posts_index loses the one after `<% end %>`).
 
 i = 0
 pending_do = 0 # open `<%= expr do %>` expressions: `end` must also close the paren
@@ -52,6 +50,8 @@ while open = input.index("<%", i)
     else
       print inner, "\n"
     end
+    # Erubi trim: drop one newline right after a code tag.
+    i += 1 if input[i]? == '\n'
   end
 end
 text = input[i..]
