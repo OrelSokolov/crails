@@ -23,12 +23,67 @@ module ActiveRecord
   class RecordNotUnique < Exception
   end
 
+  class StrictValidationFailed < Exception
+  end
+
+  class ReadOnlyRecord < Exception
+  end
+
+  class StrictLoadingViolationError < Exception
+  end
+
+  class StaleObjectError < Exception
+  end
+
   MODELS = [] of TypeNode
 
   # Compile-time registry of `set_table_name` overrides, filled by the macro.
   # (Constants defined in subclasses are not yet visible from `macro finished`,
   # so a registry is used instead of a `__TABLE_NAME__` constant lookup.)
   TABLE_OVERRIDES = [] of Nil
+
+  # Compile-time registry of default_scope bodies ({class name, where call}).
+  DEFAULT_SCOPES = [] of Nil
+
+  # Compile-time registry of primary key overrides ({class name, pk name}).
+  PRIMARY_KEYS = [] of Nil
+
+  # Compile-time registry of `attribute ... default:` declarations
+  # ({class name, attribute name, default literal}).
+  ATTRIBUTE_DEFAULTS = [] of Nil
+
+  # Compile-time enum registry: {class name, column, NamedTuple of
+  # value => int}. Rails 8.1 enum getters return STRINGS (oracle-verified).
+  ENUMS = [] of Nil
+
+  # Compile-time store registry: {class name, jsonb column}. Models using
+  # `store` get a StoreProxy reader instead of the raw JSON::Any.
+  STORES = [] of Nil
+
+  # Compile-time attribute alias registry: {class, alias, column}.
+  ALIASES = [] of Nil
+
+  # Read-only view over a jsonb store column: `settings["theme"]` returns
+  # the scalar like Ruby's Hash (String for strings; raw.to_s otherwise).
+  class StoreProxy
+    def initialize(@hash : Hash(String, JSON::Any))
+    end
+
+    def [](key : String) : String?
+      @hash[key]?.try do |v|
+        raw = v.raw
+        raw.is_a?(String) ? raw : raw.to_s
+      end
+    end
+
+    def key?(key : String) : Bool
+      @hash.has_key?(key)
+    end
+
+    def size : Int32
+      @hash.size
+    end
+  end
 
   class Base
     macro inherited
@@ -43,15 +98,144 @@ module ActiveRecord
       {% ActiveRecord::TABLE_OVERRIDES << {@type.name.stringify, name} %}
     end
 
+    # Explicit primary key override (before codegen):
+    #   class Widget < ActiveRecord::Base
+    #     set_primary_key "uid"
+    #   end
+    macro set_primary_key(name)
+      {% ActiveRecord::PRIMARY_KEYS << {@type.name.stringify, name} %}
+    end
+
+    # attribute :nickname, default: "anon" — model-level default applied to
+    # NEW records only (a NULL read from the database stays nil, mirroring
+    # Rails 8.1 — oracle-verified). The `type` argument is accepted for
+    # 1:1 with the Ruby API and ignored: column types come from the
+    # schema codegen.
+    macro attribute(name, type = nil, default = nil)
+      {% ActiveRecord::ATTRIBUTE_DEFAULTS << { @type.name.stringify, name.id.stringify, default } %}
+    end
+
+    # enum :status, {draft: 0, active: 1} — Ruby's `enum` is a keyword in
+    # Crystal, hence the ar_ prefix. Rails 8.1 semantics: the getter
+    # returns a String, `status=` accepts String/Symbol/Int, `active?`
+    # predicates, `active!` save-bangs, `Model.active` scope,
+    # `Model.statuses` mapping.
+    macro ar_enum(name, values)
+      {% ActiveRecord::ENUMS << { @type.name.stringify, name.id.stringify, values } %}
+    end
+
+    # store :settings, accessors: [:theme] — jsonb-backed accessor methods.
+    # The container reader below (StoreProxy) survives because ar_codegen
+    # skips the plain column getter for STORES-registry columns, so
+    # `settings["theme"]` inspects like Ruby's Hash value ("dark", not
+    # JSON::Any("dark")).
+    macro store(attr_name, accessors = nil)
+      {% ActiveRecord::STORES << { @type.name.stringify, attr_name.id.stringify } %}
+      {% for a in accessors %}
+        def {{a.id}} : String?
+          if (s = @{{attr_name.id}})
+            s[{{a.id.stringify}}]?.try(&.as_s?)
+          else
+            nil
+          end
+        end
+
+        def {{a.id}}=(value : String) : Nil
+          base = @{{attr_name.id}}.try(&.as_h) || {} of String => JSON::Any
+          base[{{a.id.stringify}}] = JSON::Any.new(value)
+          self.{{attr_name.id}} = JSON::Any.new(base)
+        end
+      {% end %}
+
+      def {{attr_name.id}} : ::ActiveRecord::StoreProxy?
+        @{{attr_name.id}}.try { |v| ::ActiveRecord::StoreProxy.new(v.as_h) }
+      end
+    end
+
+    # has_secure_token: 24-char hex token generated before the first save.
+    macro has_secure_token(attr_name = :token)
+      def before_save__cb_secure_token : Bool
+        if new_record? && @{{attr_name.id}}.nil?
+          @{{attr_name.id}} = Random::Secure.hex(12)
+        end
+        true
+      end
+    end
+
+    # attr_readonly: changes to these columns are silently ignored on
+    # update (Rails behaviour, oracle-verified).
+    macro attr_readonly(*names)
+      def __readonly_attrs : Array(String)
+        a = [] of String
+        {% for n in names %}a << {{n.id.stringify}}{% end %}
+        a
+      end
+    end
+
+    # alias_attribute :title, :name — reader/writer delegates; the alias
+    # also resolves inside where(...).
+    macro alias_attribute(new_name, old_name)
+      def {{new_name.id}}
+        {{old_name.id}}
+      end
+
+      def {{new_name.id}}=(value)
+        self.{{old_name.id}} = value
+      end
+
+      {% ActiveRecord::ALIASES << { @type.name.stringify, new_name.id.stringify, old_name.id.stringify } %}
+    end
+
+    # scope :published do ... end — the block body is spliced into a class
+    # method; block parameters become method parameters.
+    #   scope :with_views_gt do |n|
+    #     where("views > ?", n)
+    #   end
+    macro scope(name, &block)
+      def self.{{name.id}}({{ block.args.splat }})
+        {{ block.body }}
+      end
+    end
+
+    # default_scope { where(...) } — the body must be a single `where`
+    # call (Crystal port limitation; arbitrary chains would recurse
+    # through the class-level query API). Applied in `self.all`;
+    # `unscoped` bypasses it.
+    macro default_scope(&block)
+      {% body = block.body %}
+      {% if body.is_a?(Call) && body.name.stringify == "where" %}
+        {% ActiveRecord::DEFAULT_SCOPES << { @type.name.stringify, body } %}
+      {% else %}
+        {% raise "default_scope supports a single `where(...)` call (Crystal port limitation)" %}
+      {% end %}
+    end
+
     property id : Int64?
     property? new_record = true
     property? destroyed = false
+    # Set on records materialized from Relation#readonly / #strict_loading.
+    property? readonly = false
+    property? strict_loading = false
 
     # Errors from the last validation run (see validations.cr).
     property errors = Errors.new
 
     @original_attributes : Hash(String, Value)?
     @previous_changes : Hash(String, Tuple(Value, Value)) = {} of String => Tuple(Value, Value)
+
+    # Overridden per model when `attribute ... default:` is declared.
+    def __apply_manual_attribute_defaults : Nil
+      nil
+    end
+
+    def __readonly_attrs : Array(String)
+      [] of String
+    end
+
+    # Attribute-alias resolution (overridden per model by alias_attribute).
+    def self.__resolve_column(name : String) : String
+      name
+    end
 
     def persisted? : Bool
       !new_record? && !destroyed?
@@ -93,13 +277,32 @@ module ActiveRecord
     # so PostgreSQL keywords like `until` stay 1:1 — def names are built
     # at the AST level and never re-parsed).
     # cols: [["name", "CrystalType", is_bool?, kw_ok?, default_lit], ...]
-    macro ar_codegen(cols)
+    macro ar_codegen(pk, cols)
+      {% has_type = false %}
+      {% for c in cols %}{% if c[0] == "type" %}{% has_type = true %}{% end %}{% end %}
+
       {% for c in cols %}
         @{{c[0].id}} : {{c[1].id}}? = {{c[4]}}
 
-        def {{c[0].id}} : {{c[1].id}}?
-          @{{c[0].id}}
-        end
+        {% enum_col = false %}
+        {% for e in ActiveRecord::ENUMS %}
+          {% if e[0] == @type.name.stringify && e[1] == c[0] %}{% enum_col = true %}{% end %}
+        {% end %}
+        {% store_col = false %}
+        {% for s in ActiveRecord::STORES %}
+          {% if s[0] == @type.name.stringify && s[1] == c[0] %}{% store_col = true %}{% end %}
+        {% end %}
+        {% if enum_col %}
+          # enum reader generated separately (Rails 8.1: String getters)
+        {% elsif store_col %}
+          def {{c[0].id}} : ::ActiveRecord::StoreProxy?
+            @{{c[0].id}}.try { |v| ::ActiveRecord::StoreProxy.new(v.as_h) }
+          end
+        {% else %}
+          def {{c[0].id}} : {{c[1].id}}?
+            @{{c[0].id}}
+          end
+        {% end %}
 
         def {{c[0].id}}=(value : {{c[1].id}}?)
           @{{c[0].id}} = value
@@ -131,33 +334,80 @@ module ActiveRecord
       {% params = [] of Nil %}
       {% for c in cols %}{% if c[3] %}{% params << c %}{% end %}{% end %}
       {% if params.empty? %}
-        def initialize
+        def initialize(for_load = false)
+          {% if has_type && @type.superclass.stringify != "ActiveRecord::Base" %}
+            @type = {{ @type.name.split("::").last }} if @type.nil?
+          {% end %}
+          __apply_manual_attribute_defaults unless for_load
+          __run_after_initialize unless for_load
         end
       {% else %}
-        def initialize(*, {% for c in params %} {{c[0].id}} : {{c[1].id}}? = {{c[4]}}, {% end %})
+        def initialize(for_load = false, *, {% for c in params %} {{c[0].id}} : {{c[1].id}}? = {{c[4]}}, {% end %})
           {% for c in params %}@{{c[0].id}} = {{c[0].id}};{% end %}
+          {% if has_type && @type.superclass.stringify != "ActiveRecord::Base" %}
+            @type = {{ @type.name.split("::").last }} if @type.nil?
+          {% end %}
+          __apply_manual_attribute_defaults unless for_load
+          __run_after_initialize unless for_load
         end
       {% end %}
 
       def self.__from_row(rs : DB::ResultSet) : self
-        record = new
-        record.id = rs.read(Int64?)
-        {% for c in cols %}
-          {% if c[1] == "Int64" %}
-            # int2/int4 columns decode as Int32 — widen to Int64
-            record.{{c[0].id}} = rs.read(Int32 | Int64 | Nil).try(&.to_i64)
-          {% else %}
-            record.{{c[0].id}} = rs.read({{c[1].id}}?)
+        __from_row_cols(rs, __column_names)
+      end
+
+      def self.__read_row(rs : DB::ResultSet, names : Array(String)) : self
+        record = new(for_load: true)
+        names.each do |name|
+          case name
+          when {{pk}} then record.id = rs.read(Int64?)
+          {% for c in cols %}
+            when {{c[0]}} then
+              {% if c[1] == "Int64" %}
+                # int2/int4 columns decode as Int32 — widen to Int64
+                record.{{c[0].id}} = rs.read(Int32 | Int64 | Nil).try(&.to_i64)
+              {% else %}
+                record.{{c[0].id}} = rs.read({{c[1].id}}?)
+              {% end %}
           {% end %}
-        {% end %}
+          else
+            raise ArgumentError.new("unknown column #{name} for #{self}")
+          end
+        end
         record.new_record = false
         record.__snapshot_original!
+        # Rails order (oracle-verified): after_find fires BEFORE
+        # after_initialize on loaded records.
+        record.__run_after_find
+        record.__run_after_initialize
         record
+      end
+
+      # Builds a record from the given column subset (Relation#select);
+      # the primary key always lands in `@id` regardless of its name.
+      # STI tables (a `type` column): rows are materialized as the base
+      # class and converted to the registered subclass via becomes().
+      def self.__from_row_cols(rs : DB::ResultSet, names : Array(String)) : self
+        base = __read_row(rs, names)
+        {% if has_type %}
+          if (tv = base.type)
+            case tv
+            {% for sub in @type.all_subclasses %}
+              {% unless sub.abstract? %}
+            when {{sub.name.split("::").last}} then return base.becomes({{sub}})
+              {% end %}
+            {% end %}
+            else
+              # unknown type value: keep the base class
+            end
+          end
+        {% end %}
+        base
       end
 
       def attributes : Hash(String, ActiveRecord::Value)
         attrs = {} of String => ActiveRecord::Value
-        attrs["id"] = @id
+        attrs[{{pk}}] = @id
         {% for c in cols %}
           attrs[{{c[0]}}] = @{{c[0].id}}
         {% end %}
@@ -166,7 +416,7 @@ module ActiveRecord
 
       def [](name : String) : ActiveRecord::Value
         case name
-        when "id" then @id
+        when {{pk}} then @id
         {% for c in cols %}
           when {{c[0]}} then @{{c[0].id}}
         {% end %}
@@ -210,12 +460,87 @@ module ActiveRecord
             {% custom_table = pair[1] %}
           {% end %}
         {% end %}
+        # STI subclasses inherit the table name (explicit override or
+        # convention) from their model superclass (one level; deeper STI
+        # needs an explicit set_table_name).
+        {% table_class = class_name %}
+        {% if custom_table.nil? && t.superclass.stringify != "ActiveRecord::Base" %}
+          {% for pair in ActiveRecord::TABLE_OVERRIDES %}
+            {% if pair[0] == t.superclass.name.stringify %}{% custom_table = pair[1] %}{% end %}
+          {% end %}
+          {% if custom_table.nil? %}
+            {% table_class = t.superclass.name.split("::").last %}
+          {% end %}
+        {% end %}
         {% table_arg = custom_table || "" %}
+        {% custom_pk = nil %}
+        {% for pair in ActiveRecord::PRIMARY_KEYS %}
+          {% if pair[0] == t.name.stringify %}
+            {% custom_pk = pair[1] %}
+          {% end %}
+        {% end %}
+        {% pk_arg = custom_pk || "" %}
         {% runner = __DIR__ + "/codegen_runner.cr" %}
         class ::{{ t.stringify.id }}
-          {{ run(runner, class_name, table_arg).id }}
+          {{ run(runner, table_class, table_arg, pk_arg).id }}
+
+          {% defaults = ActiveRecord::ATTRIBUTE_DEFAULTS.select { |p| p[0] == t.name.stringify } %}
+          {% unless defaults.empty? %}
+            def __apply_manual_attribute_defaults : Nil
+              {% for p in defaults %}
+                @{{p[1].id}} = {{p[2]}} if @{{p[1].id}}.nil?
+              {% end %}
+              nil
+            end
+          {% end %}
+
+          # Polymorphic belongs_to: dispatch over the compile-time registry
+          # of `as:` owners (no runtime constantize in Crystal).
+          {% for u in ActiveRecord::POLY_USERS %}
+            {% if u[0] == t.name.stringify %}
+              def {{u[1].id}} : ::ActiveRecord::Base?
+                tid = {{(u[1] + "_id").id}}
+                ttype = {{(u[1] + "_type").id}}
+                return nil if tid.nil? || ttype.nil?
+                case ttype
+                {% for o in ActiveRecord::POLY_OWNERS %}
+                  {% if o[0] == u[1] %}
+                when {{o[1]}} then {{o[2]}}.find?(tid.not_nil!)
+                  {% end %}
+                {% end %}
+                else nil
+                end
+              end
+
+              def {{u[1].id}}=(record : ::ActiveRecord::Base)
+                self.{{(u[1] + "_id").id}} = record.id
+                self.{{(u[1] + "_type").id}} = record.class.name
+                record
+              end
+            {% end %}
+          {% end %}
+
+          {% ds = nil %}
+          {% for pair in ActiveRecord::DEFAULT_SCOPES %}
+            {% if pair[0] == t.name.stringify %}{% ds = pair[1] %}{% end %}
+          {% end %}
 
           def self.all : ::ActiveRecord::Relation(self)
+            {% if ds %}
+              rel = ::ActiveRecord::Relation(self).new(self)
+              rel = rel.{{ ds.name.id }}({% if ds.args.size > 0 %}{{ ds.args.splat }}, {% end %}{% if ds.named_args %}{% for na in ds.named_args %}{{ na.name.id }}: {{ na.value }}, {% end %}{% end %})
+            {% else %}
+              rel = ::ActiveRecord::Relation(self).new(self)
+            {% end %}
+            # STI descendant: single-table filter on the type column.
+            {% if t.superclass.stringify != "ActiveRecord::Base" %}
+              rel = rel.where(type: name.not_nil!.split("::").last) if __has_type_column?
+            {% end %}
+            rel
+          end
+
+          # Bypasses default_scope (Rails `unscoped`).
+          def self.unscoped : ::ActiveRecord::Relation(self)
             ::ActiveRecord::Relation(self).new(self)
           end
 
@@ -247,7 +572,7 @@ module ActiveRecord
             all.offset(n)
           end
 
-          def self.count : Int64
+          def self.count : Int64 | Hash(ActiveRecord::Value, Int64)
             all.count
           end
 
@@ -256,7 +581,35 @@ module ActiveRecord
           end
 
           def self.exists?(id : Int64 | Int32) : Bool
-            all.where(id: id).exists?
+            all.where(%("#{primary_key}" = ?), id.to_i64).exists?
+          end
+
+          def self.exists?(**opts) : Bool
+            all.where(**opts).exists?
+          end
+
+          def self.select(*cols : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.select(*cols)
+          end
+
+          def self.reselect(*cols : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.reselect(*cols)
+          end
+
+          def self.lock(clause : String = "FOR UPDATE") : ::ActiveRecord::Relation(self)
+            all.lock(clause)
+          end
+
+          def self.readonly(value : Bool = true) : ::ActiveRecord::Relation(self)
+            all.readonly(value)
+          end
+
+          def self.strict_loading(value : Bool = true) : ::ActiveRecord::Relation(self)
+            all.strict_loading(value)
+          end
+
+          def self.includes(*names : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.includes(*names)
           end
 
           def self.take : self?
@@ -290,7 +643,7 @@ module ActiveRecord
           end
 
           def self.find?(id : Int64 | Int32) : self?
-            all.where(id: id.to_i64).first
+            all.where(%("#{primary_key}" = ?), id.to_i64).first
           end
 
           def self.find_by(**opts) : self?
@@ -306,10 +659,194 @@ module ActiveRecord
             all.find_each(batch_size) { |record| yield record }
           end
 
+          def self.sum(col : String | Symbol) : Int64
+            all.sum(col)
+          end
+
+          def self.average(col : String | Symbol) : PG::Numeric?
+            all.average(col)
+          end
+
+          def self.minimum(col : String | Symbol) : Int64?
+            all.minimum(col)
+          end
+
+          def self.maximum(col : String | Symbol) : Int64?
+            all.maximum(col)
+          end
+
+          def self.group(*cols : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.group(*cols)
+          end
+
+          def self.having(condition : String, *args) : ::ActiveRecord::Relation(self)
+            all.having(condition, *args)
+          end
+
+          def self.distinct(value : Bool = true) : ::ActiveRecord::Relation(self)
+            all.distinct(value)
+          end
+
+          def self.joins(*names : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.joins(*names)
+          end
+
+          def self.left_outer_joins(*names : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.left_outer_joins(*names)
+          end
+
+          def self.reorder(*cols : String | Symbol) : ::ActiveRecord::Relation(self)
+            all.reorder(*cols)
+          end
+
+          def self.reorder(**opts) : ::ActiveRecord::Relation(self)
+            all.reorder(**opts)
+          end
+
+          def self.in_order_of(col : String | Symbol, values : Array(Int64 | Int32)) : ::ActiveRecord::Relation(self)
+            all.in_order_of(col, values)
+          end
+
+          def self.none : ::ActiveRecord::Relation(self)
+            all.none
+          end
+
+          def self.update_all(values : Hash(String, ActiveRecord::Value)) : Int64
+            all.update_all(values)
+          end
+
+          def self.delete_all : Int64
+            all.delete_all
+          end
+
+          def self.destroy_all : Array(self)
+            all.destroy_all
+          end
+
+          def self.touch_all : Int64
+            all.touch_all
+          end
+
+          def self.annotate(message : String) : ::ActiveRecord::Relation(self)
+            all.annotate(message)
+          end
+
+          def self.explain : String
+            all.explain
+          end
+
+          # Preloader for Relation#includes: has_many → one IN query, groups
+          # the results onto the owners; belongs_to → one IN query, caches
+          # each target (see ASSOCIATIONS registry).
+          def self.__preload_assoc(name : String, records : Array(self)) : Nil
+            case name
+            {% for a in ActiveRecord::ASSOCIATIONS %}
+              {% if a[0] == t.name.stringify %}
+                {% if a[2] == "has_many" %}
+              when {{a[1]}} then
+                  ids = records.map(&.id).compact
+                  unless ids.empty?
+                    all = {{a[3]}}.where(%({{a[4]}} IN (#{ids.join(", ")}))).to_a
+                    groups = {} of Int64 => Array(::ActiveRecord::Base)
+                    all.each do |rec|
+                      if (fkv = rec[{{a[4]}}].as?(Int64))
+                        (groups[fkv] ||= [] of ::ActiveRecord::Base) << rec
+                      end
+                    end
+                    records.each do |owner|
+                      if oid = owner.id
+                        # an empty group still marks the association loaded
+                        owner.__set_loaded_assoc({{a[1]}}, groups[oid]? || [] of ::ActiveRecord::Base)
+                      end
+                    end
+                  end
+                {% elsif a[2] == "belongs_to" %}
+              when {{a[1]}} then
+                  fks = records.map { |o| o[{{a[4]}}].as?(Int64) }.compact.uniq
+                  unless fks.empty?
+                    targets = Hash(Int64, ::ActiveRecord::Base).new
+                    {{a[3]}}.where(%("#{ {{a[3]}}.primary_key }" IN (#{fks.join(", ")}))).to_a.each do |rec|
+                      targets[rec.id.not_nil!] = rec
+                    end
+                    records.each do |owner|
+                      if (fkv = owner[{{a[4]}}].as?(Int64)) && (target = targets[fkv]?)
+                        owner.__cache_assoc({{a[1]}}, target)
+                      end
+                    end
+                  end
+                {% end %}
+              {% end %}
+            {% end %}
+            end
+            nil
+          end
+
+          # enum emission (getter overrides the skipped codegen one)
+          {% for e in ActiveRecord::ENUMS %}
+            {% if e[0] == t.name.stringify %}
+              def {{e[1].id}} : String?
+                v = @{{e[1].id}}
+                return nil if v.nil?
+                case v
+                {% for k, v in e[2] %}
+                when {{v}} then {{k.stringify}}
+                {% end %}
+                else v.to_s
+                end
+              end
+
+              def {{e[1].id}}=(value : String)
+                case value
+                {% for k, v in e[2] %}
+                when {{k.stringify}} then @{{e[1].id}} = {{v}}
+                {% end %}
+                else
+                  raise ArgumentError.new("invalid value #{value} for {{e[1].id}}")
+                end
+              end
+
+              def {{e[1].id}}=(value : Symbol)
+                self.{{e[1].id}} = value.to_s
+              end
+
+              def self.{{(e[1].id.stringify + (e[1].id.stringify.ends_with?("s") ? "es" : "s")).id}} : Hash(String, Int64)
+                { {% for k, v in e[2] %}{{k.stringify}} => {{v}}_i64, {% end %} }
+              end
+
+              {% for k, v in e[2] %}
+                def {{k.id}}? : Bool
+                  @{{e[1].id}} == {{v}}
+                end
+
+                def {{k.id}}! : Bool
+                  self.{{e[1].id}} = {{k.stringify}}
+                  save
+                end
+
+                def self.{{k.id}} : ::ActiveRecord::Relation(self)
+                  all.where({{e[1].id.stringify}}: {{v}})
+                end
+              {% end %}
+            {% end %}
+          {% end %}
+
+          # attribute aliases (where(title:) resolves to the real column)
+          {% model_aliases = ActiveRecord::ALIASES.select { |a| a[0] == t.name.stringify } %}
+          {% unless model_aliases.empty? %}
+            def self.__resolve_column(name : String) : String
+              case name
+              {% for a in model_aliases %}
+              when {{a[1]}} then {{a[2]}}
+              {% end %}
+              else name
+              end
+            end
+          {% end %}
+
           # --- hook runners assembled from prefixed methods -----------------
-          def __run_validations : Nil
+          def __run_validations(context : Symbol) : Nil
             {% for m in t.methods %}
-              {% if m.name.stringify.starts_with?("validation__") %}{{ m.name.id }}{% end %}
+              {% if m.name.stringify.starts_with?("validation__") %}{{ m.name.id }}(context){% end %}
             {% end %}
             nil
           end
@@ -387,6 +924,43 @@ module ActiveRecord
             {% end %}
             nil
           end
+
+          def __run_after_initialize : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_initialize__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_find : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_find__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          def __run_after_touch : Nil
+            {% for m in t.methods %}
+              {% if m.name.stringify.starts_with?("after_touch__cb_") %}{{ m.name.id }}{% end %}
+            {% end %}
+            nil
+          end
+
+          # Around-callback chains: depth-dispatch walking (the Nth callback
+          # receives a block continuing with the N+1th; `else` runs action).
+          {% for kind in ["around_save", "around_create", "around_update", "around_destroy"] %}
+            {% prefix = kind.id.stringify + "__cb_" %}
+            {% chain = t.methods.select { |m| m.name.stringify.starts_with?(prefix) } %}
+            def __wrap_{{kind.id}}(depth : Int32, action : Proc(Nil)) : Nil
+              case depth
+              {% for i in 0...chain.size %}
+                when {{i}} then {{ chain[i].name.id }} { __wrap_{{kind.id}}({{i + 1}}, action) }
+              {% end %}
+              else
+                action.call
+              end
+            end
+          {% end %}
         end
       {% end %}
     {% end %}

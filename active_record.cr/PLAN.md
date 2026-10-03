@@ -5,17 +5,23 @@
 > Неймспейс `ActiveRecord`, API 1:1 с Rails 8. Статус меняем прямо в этой
 > таблице. Легенда статусов:
 >
-> - ✅ готово (покрыто спеками)
-> - 🔶 частично (перечислено, чего не хватает в «Примечании»)
+> - ✅ готово (покрыто oracle-спеками, activerecord 8.1.4)
+> - 🔶 частично / с отклонением (указано в «Примечании»)
 > - ⬜ не начато
 > - ❌ Crystal не позволит / осознанное отклонение (эквивалент указан)
+
+**Статус (2026-10-03): 239/239 спеков зелёные (oracle: crud/dirty/callbacks/
+validations/associations/transactions/relation §2/persistence §6/proxy §5/
+P1-хвост/P2 (through, polymorphic, HABTM, counter_cache/touch/inverse_of,
+includes/preload, optimistic locking, STI, enum/store/alias_attribute/
+attr_readonly/cache_key/has_secure_token, nested attributes) + migrations).
+P0–P2 закрыты; остатки — см. «Порядок оставшихся работ».**
 
 ## Ключевой механизм
 
 Rails генерит методы атрибутов в рантайме (`define_method`). Crystal-эквивалент
 — compile-time кодоген `{{ run("codegen/from_schema.cr", table) }}` из
-`db/schema.yml` (генерится `crails db:schema:dump` или миграциями; после
-миграций — перекомпиляция, dev-цикл `crails db:migrate && crails watch`).
+`db/schema.yml`.
 
 Универсальные Crystal-ограничения (влияют на строки с ❌):
 
@@ -23,154 +29,155 @@ Rails генерит методы атрибутов в рантайме (`defin
 - Symbol существует только compile-time → нет `constantize`/"to_sym" в рантайме;
 - статическая типизация → нет неявных строково-числовых приведений.
 
-Общий обходной приём — compile-time registry `{{ @type.all_subclasses }}`
-(заменяет рантайм-резолв классов по строке/колонке `type`).
+**Ловушки, найденные при реализации (не наступать снова):**
+
+1. Класс-переменные (`@@db`, `@@tx_stack`) НЕ шарятся с подклассами — доступ
+   только через явные `Base.`-ресиверы (`src/transactions.cr`).
+2. Захваченный блок без аннотации типа (`&block; block.call`) возвращает Nil —
+   транзакции используют голый `&` + прямой `yield` в теле метода.
+3. `yield` нельзя использовать внутри блок/proc-литерала; `r.@ivar = ...`
+   запрещено — Relation использует `rebuild(...)`-конструктор.
+4. `{scope: :x}` в макро-kwargs — это `NamedTupleLiteral` (не HashLiteral),
+   итерируется только `{% for k, v in x %}` (named_args/entries у него нет).
+5. `.stringify` у SymbolLiteral даёт `":name"` (с двоеточием) — всегда
+   `name.id.stringify`; сплайс `{{x}}` строкового литерала добавляет свои
+   кавычки — не закавычивать повторно.
+6. `as`, `out`, `enum` — ключевые слова Crystal: параметры/методы называть
+   `as_name`, `result`, `ar_enum`.
+7. `DB::Any` (crystal-db) НЕ включает `JSON::Any` — параметры записей с
+   jsonb идут через `__db_param` (jsonb → JSON-строка, Numeric → Float).
+8. Многострочные операторы внутри одного `{% ... %}` не парсятся — писать
+   построчными тегами `{% for %} … {% end %}`.
+9. `Enumerable` в Crystal — `find`, не `detect`; `.equal?` → `.same?`.
+10. `Model.new({"k" => v})` биндит хэш в первый позиционный аргумент
+    (`for_load`) — именованные аргументы только: `Model.new(name: "x")`.
 
 ## 1. Подключение и схема
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `establish_connection` (URL / config / database.yml) | ✅ | да | `connection.cr` |
-| Unix-сокеты, `schema_search_path` | ✅ | да | |
-| Пул коннектов (fiber-safe) | ✅ | да | `DB::Pool` crystal-pg |
-| Кодоген атрибутов `name / name= / name? / name_was / name_changed?` | ✅ | да | `{{ run }}`-кодоген вместо `define_method` |
-| `table_name=`, `primary_key=` | 🔶 | да | есть `set_table_name`; `primary_key=` не сделан |
-| `attribute :x, default:` | ⬜ | да | макрос + перегрузка типа |
-| Рантайм-определение методов после смены схемы БЕЗ рекомпиляции | ❌ | нет | эквивалент: `crails watch` = rebuild |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `establish_connection` (URL / config / database.yml) | ✅ | unix-сокеты, `schema_search_path`, пул |
+| Кодоген атрибутов `name / name= / name? / name_was / name_changed?` | ✅ | `{{ run }}` из schema.yml |
+| `table_name=`, `primary_key=` | ✅ | `set_table_name` / `set_primary_key`; кастомный pk живёт в `@id` (`w.uid` → `w.id`) |
+| `attribute :x, default:` | ✅ | `attribute :nickname, default: "anon"`; применяется только к NEW-записям (NULL из БД остаётся nil — oracle-проверено); type-аргумент принимается, но игнорируется (типы из схемы) |
+| Рантайм-методы после смены схемы БЕЗ рекомпиляции | ❌ | эквивалент: `crails watch` = rebuild |
 
 ## 2. Relation / запросы
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `where(**)`, `where("sql ?", args)` | ✅ | да | kwargs вместо рубишного hash-аргумента |
-| `not`, `order`, `limit`, `offset`, `reverse_order` | ✅ | да | |
-| `each, empty?, count, size, pluck, pick, ids` | ✅ | да | |
-| `take, first, first!, last, sole, to_sql` | ✅ | да | |
-| `exists?` | 🔶 | да | нет варианта `exists?(conditions)` |
-| `find_each` | ✅ | да | |
-| `find, find?, find_by, find_by!` | ✅ | да | на уровне класса |
-| `first_or_create, find_or_create_by(_!)` | ✅ | да | |
-| `sum / average / minimum / maximum` | ⬜ | да | |
-| `or` | ⬜ | да | требует WHERE-дерево вместо текущего `Array(String)` — рефакторинг |
-| `group, having, distinct, select, reselect` | ⬜ | да | |
-| `joins, left_outer_joins` | ⬜ | да | строки/имена ассоциаций через registry |
-| `includes, preload` | ⬜ | да | preload — отдельные запросы, просто |
-| `eager_load, references` | ⬜ | да | LEFT OUTER JOIN + алиасы, сложнее |
-| `reorder, in_order_of` | ⬜ | да | |
-| `find_in_batches, in_batches` | ⬜ | да | |
-| `update_all, delete_all, destroy_all, touch_all` | ⬜ | да | на уровне Relation (классовые `destroy/delete` есть) |
-| `none, except/only, merge, annotate, explain` | ⬜ | да | |
-| `lock, readonly, strict_loading` | ⬜ | да | `strict_loading` без рантайм-исключений — упрощённо |
-| `scope :name do ... end` | ⬜ | да | сплайс тела блока — проверено зондом |
-| `default_scope, unscoped` | ⬜ | да | |
-| Dynamic finders `find_by_email` | ❌ | нет | нет `method_missing`; замена `find_by(email: ...)` |
-| `where` с рантайм-строками как Symbol-ключами | ❌ | нет | только compile-time kwargs/строки |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `where/not/order/limit/offset/reverse_order` | ✅ | |
+| `each, empty?, count(+group), size, pluck, pick, ids` | ✅ | count c GROUP BY → Hash |
+| `take, first, first!, last, sole, to_sql` | ✅ | |
+| `exists?` | ✅ | без аргументов, `exists?(id)` и `exists?(attr: value)` |
+| `find_each, find_in_batches, in_batches(of:)` | ✅ | |
+| `find, find?, find_by, find_by!, first_or_create, find_or_create_by` | ✅ | |
+| `sum / average / minimum / maximum` | ✅ | average → PG::Numeric(2 знака) |
+| `or, merge` | ✅ | `or` проверяет структурную совместимость |
+| `group, having, distinct` | ✅ | |
+| `select, reselect` | 🔶 | простые колонки (append/reselect); отклонения: незагруженный атрибут → nil (Rails: MissingAttributeError), raw-SQL фрагменты нельзя материализовать в записи |
+| `joins, left_outer_joins` | ✅ | конвенция has_many/has_one FK |
+| `includes, preload, eager_load, references` | 🔶 | `includes`/`preload` ✅: IN-запросы по PK, прелоад из памяти (each/count/size/ids/pluck), счётчик запросов (`__query_count`) оракул-сверен — ровно 2 запроса; eager_load/references ⬜; полиморфные/through-ассоциации в includes — лениво (по одному запросу на запись-владельца не делается) |
+| `reorder, in_order_of` | ✅ | ARRAY_POSITION |
+| `update_all, delete_all, destroy_all, touch_all` | ✅ | на уровне Relation и класса |
+| `none, except/only, annotate, explain` | ✅ | explain → String (в Rails ExplainProxy) |
+| `lock, readonly, strict_loading` | ✅ | `lock`/"FOR UPDATE", readonly-записи: save/destroy/update_columns/touch → ReadOnlyRecord; strict_loading: доступ к ассоциации → StrictLoadingViolationError |
+| `scope :name do ... end` (с параметрами) | ✅ | сплайс тела блока |
+| `default_scope, unscoped` | 🔶 | default_scope — только одиночный `where(...)` (макро-ограничение, иначе рекурсия через класс-уровень API) |
+| Dynamic finders `find_by_email` | ❌ | нет `method_missing` → `find_by(email:)` |
 
 ## 3. Валидации
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `validates` presence / length / numericality / format / uniqueness | ✅ | да | `allow_nil` есть |
-| `validate` (метод/блок) | ✅ | да | |
-| `valid? / invalid?` | ✅ | да | |
-| `errors.add / full_messages / where / size / empty?` | ✅ | да | |
-| `inclusion, exclusion, acceptance, confirmation, comparison` | ⬜ | да | confirmation = кодоген виртуального `_confirmation`-атрибута |
-| `uniqueness: {scope:}` | ⬜ | да | запрос в валидации |
-| `if: / unless:` (Symbol, proc) | ⬜ | да | |
-| `on: / allow_blank: / strict:` | ⬜ | да | |
-| `errors.details / group_by_attribute` | ⬜ | да | |
-| numericality: строка в Int-колонку проходит валидацию | ❌ | нет | не скомпилируется — отклонение задокументировано в oracle |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| presence / length / numericality / format / uniqueness(+scope:) | ✅ | |
+| inclusion, exclusion, acceptance, confirmation, comparison | ✅ | Rails 8 acceptance пропускает nil |
+| `validate` (метод/блок), `valid?(context)` / `invalid?` | ✅ | контекст :create/:update по умолчанию |
+| `on:, allow_blank:, allow_nil:, strict:` | ✅ | strict → StrictValidationFailed |
+| `if: / unless:` | 🔶 | Ruby-ключевые слова → `condition:` / `unless_condition:` |
+| `errors: add/full_messages/where(attr[, type])/details/group_by_attribute` | ✅ | details-ключи String (в Ruby — Symbol; рантайм-символов нет) |
+| `around_validation` | ❌ | в Rails 8 НЕ существует — не портируем |
+| numericality на строке в Int-колонку | ❌ | не скомпилируется (задокументировано) |
 
 ## 4. Коллбэки
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| before/after `_validation / _save / _create / _update / _destroy` | ✅ | да | метод или блок |
-| `around_validation/save/create/update/destroy` | ⬜ | да | через `yield` |
-| `after_initialize, after_find, after_touch` | ⬜ | да | |
-| `after_commit, after_rollback` (+ `_create/_update/_destroy`) | ⬜ | да | реестр коллбэков внутри транзакции; зависит от §7 |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| before/after `_validation/_save/_create/_update/_destroy` | ✅ | порядок сверен с оракулом |
+| `around_save/create/update/destroy` | ✅ | блок-форма или `around_save :m`; порядок 1:1 (around_save обёртывает before_save; around_create выходит ДО after_create) |
+| `after_initialize, after_find, after_touch` | ✅ | on load after_find срабатывает ДО after_initialize (1:1) |
+| `after_commit, after_rollback` (+ `on:`-фильтр) | ✅ | реальный COMMIT/ROLLBACK, включая savepoints; вне транзакции — на каждую операцию |
 
 ## 5. Ассоциации
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `belongs_to` (+ `build_/create_/create_`) | ✅ | да | опции: `foreign_key, class_name, optional` |
-| `has_many` (+ `dependent`) | ✅ | да | опции: `dependent, foreign_key, class_name` |
-| `has_one` (+ `build_/create_`, `dependent`) | ✅ | да | |
-| CollectionProxy `each/count/size/empty?/ids/pluck/build/create/create!/destroy_all/delete_all/order?/where?` | ✅ | да | |
-| CollectionProxy `<< / concat, delete, destroy, include?, replace` | ⬜ | да | |
-| `post_ids` | ⬜ | да | |
-| `through / source` | ⬜ | да | |
-| polymorphic (`as:`, `imageable_type`) | ⬜ | да | резолв класса по строке — compile-time registry строка→класс |
-| `has_and_belongs_to_many` | ⬜ | да | |
-| `counter_cache` (опция + conventional) | ⬜ | да | |
-| `inverse_of, autosave, touch, primary_key, validate` (опции) | ⬜ | да | |
-| Рантайм `class_name: "Foo"` по любой строке | ❌ | частично | только классы, известные на компиляции (registry) |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `belongs_to` (+ `build_/create_`), `has_many`, `has_one` (+dependent) | ✅ | опции `foreign_key, class_name, optional` |
+| CollectionProxy `each/count/size/empty?/ids/pluck/build/create/create!/destroy_all/delete_all/order?/where?` | ✅ | |
+| CollectionProxy `<<, concat, include?, destroy, delete, replace` | 🔶 | `delete`/`replace` (nullify) реализованы, но oracle-НЕзакреплены: в scratch-схеме FK NOT NULL |
+| `post_ids` | ✅ | `<assoc>_ids` кодогеном |
+| `through / source` | ✅ | subquery `mid_fk IN (SELECT …)`; `source` по конвенции |
+| polymorphic (`as:`) | ✅ | параметр `as_name:` (as — ключевое слово); compile-time реестр `POLY_OWNERS/POLY_USERS`; геттер/сеттер эмитится в `macro finished` |
+| `has_and_belongs_to_many` | ✅ | join-имена от table_name обеих сторон; при нестандартных классах Ruby-стороне нужны явные `foreign_key:`/`association_foreign_key:` |
+| `counter_cache` (опция + конвенции) | ✅ | хуки after_create/before_destroy; без ребаланса при смене FK |
+| `inverse_of, autosave, touch, primary_key, validate` (опции) | 🔶 | inverse_of ✅ (кэш на build/<<, авто-подбор по FK), touch ✅ (after_save/after_destroy); autosave ⬜ (основной кейс закрыт nested attributes), `primary_key:`/`validate:` опции ⬜ |
+| Рантайм `class_name: "Foo"` по любой строке | ❌ | только классы, известные на компиляции |
 
 ## 6. Persistence + dirty
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `new, create(_!), save(_!), update(_!), assign_attributes, attributes` | ✅ | да | |
-| `destroy, persisted?, new_record?, frozen?` | ✅ | да | |
-| dirty: `changed?/changed/changes/saved_changes/has_changes_to_save?/will_save_change_to_x?` | ✅ | да | |
-| `update_columns, touch, touch(*cols)` | ✅ | да | |
-| `insert_all, insert_all!, upsert_all` | ✅ | да | |
-| `reload` | 🔶 | да | кодоген даёт `reload!`; нужен каноничный `reload` |
-| `update_attribute, increment/decrement(+!), toggle` | ⬜ | да | |
-| `restore_attributes, previous_changes` | ⬜ | да | |
-| инстансный `delete` | ⬜ | да | |
-| `becomes` | ⬜ | да | через compile-time registry; произвольный класс в рантайме — нет |
-| `delete`/`destroy` класса по id, `update(id, ...)` | ✅ | да | |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `new, create(_!), save(_!), update(_!), assign_attributes, attributes` | ✅ | |
+| `destroy, persisted?, new_record?, frozen?` | ✅ | |
+| dirty: `changed?/changed/changes/saved_changes/will_save_change_to_x?` | ✅ | |
+| `update_columns, touch(*cols), insert_all(_!), upsert_all` | ✅ | |
+| `reload` | ✅ | + сгенерированный `reload!` |
+| `update_attribute` (без валидаций, → Bool) | ✅ | 1:1: возвращает результат save, не self |
+| `increment/decrement(+!), toggle(+!)` | ✅ | 1:1: toggle → self, toggle! → Bool |
+| `restore_attributes, previous_changes` | ✅ | restore восстанавливает значения |
+| инстансный `delete` (без коллбэков) | ✅ | |
+| `becomes(OtherClass)` | ✅ | generic-метод, копия атрибутов |
 
 ## 7. Транзакции и локи
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `transaction` (блок), `requires_new:, isolation:` | ⬜ | да | crystal-pg поддерживает; заявлено в P0 — главный долг |
-| `with_lock, lock!` | ⬜ | да | |
-| optimistic locking (`lock_version`) | ⬜ | да | |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `transaction` (`requires_new:, isolation:`) | ✅ | пиннинг коннекта на fiber; Joined-nested Rollback НЕ откатывает (1:1 с 8.1.4 — сверено на живом Rails!) |
+| `with_lock, lock!` | ✅ | SELECT FOR UPDATE на пинненном коннекте |
+| optimistic locking (`lock_version`) | ✅ | UPDATE `AND lock_version = $N` + инкремент; 0 строк → StaleObjectError |
 
 ## 8. Миграции
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `create_table` (все типы колонок, `timestamps, references, index`) | ✅ | да | |
-| `drop_table, add/remove/rename/change_column, change_column_default/null` | ✅ | да | |
-| `add_index (unique:, name:), remove_index` | ✅ | да | `where:`-индексы не проверены |
-| `add_reference / add_belongs_to, add/remove_foreign_key` | ✅ | да | |
-| `execute`, реверс `change` (command recorder) | ✅ | да | |
-| `crails db:migrate / rollback / schema:dump` (schema.yml) | ✅ | да | |
-| `change_table` | ⬜ | да | |
-| `create_join_table` | ⬜ | да | |
-| `add_check_constraint` (+ remove) | ⬜ | да | |
-| `reversible` (полный) / `up/down` | 🔶 | да | recorder есть; `reversible`-блоки не сделаны |
-| `t.index (where:)` | 🔶 | да | DSL-параметр есть, генерация частичного индекса не проверена |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `create_table` (все типы, `timestamps, references, index`), `id: false` | ✅ | |
+| `drop_table, add/remove/rename/change_column, change_column_default/null` | ✅ | |
+| `add_index (unique:, name:, where:)`, `remove_index` | ✅ | партиальные индексы `WHERE (...)` — в add_index, `t.index` (create_table и change_table), oracle-сверено по дампам |
+| `add_reference / add_belongs_to, add/remove_foreign_key` | ✅ | |
+| `execute`, реверс `change` (command recorder), up/down | ✅ | |
+| `change_table` (column/remove/rename/change_default/change_null/index) | ✅ | прокси поверх обратимых операций |
+| `create_join_table` | ✅ | сортированная пара, singular-колонки, без PK, БЕЗ индекса (1:1 с 8.1.4) |
+| `add_check_constraint` / `remove_check_constraint` | 🔶 | реализовано (SQL исполняется в oracle-миграции), в дамп схемы не входит |
+| `reversible`-блоки | ✅ | `dir.up { ... } / dir.down { ... }`; down-блок пишется в recorder как обратная операция |
+| `crails db:migrate / rollback / schema:dump` | ✅ | |
 
 ## 9. Прочее (P2)
 
-| API (Rails) | Статус | Crystal? | Примечание |
-|---|---|---|---|
-| `enum status: [...]` → `draft?/draft!` + скопы | ⬜ | да | макрос |
-| `serialize` | ⬜ | да | JSON-кодек |
-| `store / store_accessor` | ⬜ | да | макрос |
-| `alias_attribute` | ⬜ | да | макрос-делегация |
-| `accepts_nested_attributes_for` (+ `_destroy, reject_if`) | ⬜ | да | сложный макрос |
-| `cache_key / to_param` | ⬜ | да | |
-| `signed_id` | ⬜ | да | OpenSSL |
-| `has_secure_token` | ⬜ | да | |
-| STI (колонка `type`) | ⬜ | да | dispatch через `{{ @type.all_subclasses }}` |
-| `attr_readonly` | ⬜ | да | |
-| Рантайм-`constantize` по строке | ❌ | нет | только compile-time registry |
+| API (Rails) | Статус | Примечание |
+|---|---|---|
+| `enum status: [...]` → `draft?/draft!` + скопы | ✅ | макрос `ar_enum` (enum — ключевое слово); геттер возвращает String (8.1, oracle-сверено); `active?/active!/Model.active/Model.statuses` |
+| `serialize`, `store/store_accessor`, `alias_attribute` | 🔶 | store ✅ (jsonb из коробки, `StoreProxy`-контейнер, `store :settings, accessors: [:theme]`), alias_attribute ✅ (геттер/сеттер + резолв в `where`); serialize ⬜ |
+| `accepts_nested_attributes_for` | ✅ | has_many: отложенная запись (autosave-семантика), `allow_destroy:`, `reject_if: :all_blank`; ошибки детей всплывают как `"N posts <message>"`; belongs_to-форма ⬜. Отклонение: kwargs-значение-массив не типизируется — сеттер `model.n_posts_attributes = [...]` вызывается явно |
+| `cache_key / to_param`, `signed_id`, `has_secure_token`, `attr_readonly` | 🔶 | cache_key ✅ (`table/new`, `table/id[-ts]`), has_secure_token ✅ (24 hex), attr_readonly ✅ (молча игнорируется — oracle-сверено); to_param ⬜; signed_id ❌ (MessageVerifier вне Rails-приложения недоступен) |
+| STI (колонка `type`) | ✅ | один уровень наследования: `__read_row`-диспатч + `becomes`; таблица наследуется от родителя |
+| Рантайм-`constantize` по строке | ❌ | только compile-time registry |
 
-## Порядок работ
+## Порядок оставшихся работ
 
-1. **P0-долг**: транзакции (§7) → `after_commit/rollback` (§4).
-2. **P1**: скопы + агрегаты + `or`-рефакторинг WHERE-дерева (§2) → хвост
-   валидаций (§3) → `around_*`-коллбэки (§4) → доп. опции ассоциаций и
-   CollectionProxy (§5) → хвост persistence (§6) → хвост миграций (§8).
-3. **P2**: eager loading, `through`/polymorphic/HABTM, STI, enum/store,
-   nested attributes, optimistic locking (§2, §5, §9).
+1. **Хвост P2** (опционально): `eager_load/references` (LEFT JOIN),
+   `serialize`, опция `autosave:`/`primary_key:`/`validate:` у ассоциаций,
+   belongs_to-форма nested attributes, `to_param`, полиморфные/through
+   в includes.
 
 ## Готово, когда
 
@@ -180,10 +187,11 @@ Rails генерит методы атрибутов в рантайме (`defin
 
 ## Тестирование (правило AGENTS.md)
 
-Каждая фича начинается с интеграционных кейсов: oracle/cases.rb +
-oracle/migrations.rb сняты с настоящего activerecord 8.1.4; обе реализации
-проходят одни тесты без правки тестов. Задокументированные отклонения —
-только строки с ❌ выше.
+Каждая фича начинается с интеграционных кейсов: `oracle/cases.rb` +
+`oracle/migrations.rb` снимаются с настоящего activerecord 8.1.4; зеркала в
+`spec/oracle_spec.cr` / `spec/migrations_spec.cr` воспроизводят
+expected-файлы без правки тестов. Кейс-модели добавляются пачками
+(`TxPost`, `ScopedPost`, `IncAuthor`, `AroundPost`, `LegacyPost`, …).
 
 ## Зависимости
 

@@ -506,3 +506,800 @@ case_run("tx_lock_bang") do
   r = Post.transaction { p.lock! }
   "#{r.id == p.id} #{render(r.title)}"
 end
+
+# --- relation: scopes, aggregates, or/group/joins/bulk (§2) ---------------
+class ScopedPost < ActiveRecord::Base
+  self.table_name = "posts"
+  scope :published, -> { where(published: true) }
+  scope :with_views_gt, ->(n) { where("views > ?", n) }
+end
+
+class DSPost < ActiveRecord::Base
+  self.table_name = "posts"
+  default_scope { where(published: true) }
+end
+
+case_run("scope_basic")  { ScopedPost.published.count }
+case_run("scope_chain")  { ScopedPost.published.order(:id).pluck(:title) }
+case_run("scope_arg")    { ScopedPost.with_views_gt(1).count }
+case_run("scope_ds")     { DSPost.count }
+case_run("scope_ds_unscoped") { DSPost.unscoped.count }
+case_run("scope_ds_where") do
+  DSPost.where("views > ?", 100).count
+end
+
+case_run("agg_sum")     { Post.sum(:views) }
+case_run("agg_minimum") { Post.minimum(:views) }
+case_run("agg_maximum") { Post.maximum(:views) }
+case_run("agg_average") { Post.average(:views).round(2).to_s("F").sub(/\.?0+$/, "") }
+
+case_run("rel_or") do
+  Post.where("views > ?", 100).or(Post.where(published: true)).count
+end
+case_run("rel_or_kwargs") do
+  Post.where(title: "first").or(Post.where(title: "second")).order(:id).pluck(:id)
+end
+
+case_run("rel_group_count") { Post.group(:published).count }
+case_run("rel_having") do
+  Post.group(:published).having("count(*) > 1000").count
+end
+case_run("rel_distinct_pluck") { Post.distinct.pluck(:published).uniq }
+
+case_run("rel_joins_count") { Post.joins(:comments).count }
+case_run("rel_joins_pluck") do
+  Post.joins(:comments).order(:id).pluck(:title).uniq
+end
+case_run("rel_left_joins") do
+  Post.left_outer_joins(:comments).where("comments.id IS NULL").count
+end
+
+case_run("rel_reorder") do
+  Post.order(:title).reorder(:id).limit(3).pluck(:id)
+end
+case_run("rel_in_order_of") do
+  Post.in_order_of(:id, [3, 1, 2]).pluck(:id).first(3)
+end
+
+case_run("rel_update_all") do
+  n = Post.where(published: true).update_all(views: 777)
+  "#{n} #{Post.where(published: true).pluck(:views).uniq.inspect}"
+end
+case_run("rel_touch_all") do
+  Post.where(published: true).touch_all
+  Post.where(published: true).pluck(:updated_at).map { |t| t.to_i }.uniq.size == 1
+end
+case_run("rel_destroy_all") do
+  Post.create!(title: "dels1", views: 0)
+  Post.create!(title: "dels2", views: 0)
+  arr = Post.where("title LIKE ?", "dels%").destroy_all
+  "#{arr.size} #{Post.where("title LIKE ?", "dels%").count}"
+end
+case_run("rel_delete_all") do
+  Post.create!(title: "deld1", views: 0)
+  n = Post.where("title LIKE ?", "deld%").delete_all
+  "#{n} #{Post.where("title LIKE ?", "deld%").count}"
+end
+
+case_run("rel_find_in_batches") do
+  5.times { |i| Post.create!(title: "fib#{i}", views: 888) }
+  batches = []
+  Post.where(views: 888).find_in_batches(batch_size: 2) { |bs| batches << bs.map(&:id) }
+  batches
+end
+case_run("rel_in_batches") do
+  sizes = []
+  Post.where(views: 888).in_batches(of: 2) { |rel| sizes << rel.size }
+  sizes
+end
+
+case_run("rel_none") { "#{Post.none.count} #{Post.none.to_a.size}" }
+case_run("rel_except") do
+  Post.where(published: true).limit(5).except(:limit).count ==
+    Post.where(published: true).count
+end
+case_run("rel_only") do
+  Post.where(published: true).limit(5).only(:where).count ==
+    Post.where(published: true).count
+end
+case_run("rel_merge") do
+  Post.where(published: true).merge(Post.where("views > ?", 700)).count
+end
+case_run("rel_annotate") do
+  Post.where(id: 1).annotate("hi there").to_sql.include?("/* hi there */")
+end
+
+# --- validations tail (§3) ------------------------------------------------
+class IncAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  validates :name, inclusion: {in: %w[Ada Bod]}, allow_blank: true
+  validates :bio, exclusion: {in: %w[spam ads]}
+end
+
+class CmpAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  validates :age, comparison: {greater_than_or_equal_to: 18}, allow_nil: true
+end
+
+class ConfAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  validates :email, presence: true, confirmation: true
+end
+
+class IfAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  attr_accessor :strict_mode
+  validates :bio, length: {maximum: 5}, if: :strict_mode
+end
+
+class CtxAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  validates :name, presence: true, on: :update
+  validates :bio, presence: true, on: :create
+end
+
+class AccPost < ActiveRecord::Base
+  self.table_name = "posts"
+  attr_accessor :terms
+  validates :terms, acceptance: true
+end
+
+class StrictAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  validates :name, presence: true, strict: true
+end
+
+class ScopedComment < ActiveRecord::Base
+  self.table_name = "comments"
+  validates :body, uniqueness: {scope: :post_id}
+end
+
+case_run("val2_inclusion_bad") do
+  a = IncAuthor.new(name: "Zoe")
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_inclusion_blank") { IncAuthor.new(name: "").valid? }
+case_run("val2_inclusion_ok")    { IncAuthor.new(name: "Ada").valid? }
+case_run("val2_exclusion") do
+  a = IncAuthor.new(name: "Ada", bio: "spam")
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_comparison_lt") do
+  a = CmpAuthor.new(name: "x", age: 10)
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_comparison_ok") { CmpAuthor.new(name: "x", age: 18).valid? }
+case_run("val2_confirmation_bad") do
+  a = ConfAuthor.new(email: "a@b.c", email_confirmation: "other@x.y")
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_confirmation_ok") do
+  ConfAuthor.new(email: "a@b.c", email_confirmation: "a@b.c").valid?
+end
+case_run("val2_acceptance_false") do
+  a = AccPost.new(title: "t", views: 0)
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_acceptance_true") do
+  a = AccPost.new(title: "t", views: 0)
+  a.terms = true
+  a.valid?
+end
+case_run("val2_if_skipped") { IfAuthor.new(bio: "way too long bio").valid? }
+case_run("val2_if_applied") do
+  a = IfAuthor.new(bio: "way too long bio")
+  a.strict_mode = true
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_on_create_ok") do
+  CtxAuthor.new(bio: "b").valid?
+end
+case_run("val2_on_create_missing") do
+  a = CtxAuthor.new
+  "#{a.valid?} #{render(a.errors.full_messages)}"
+end
+case_run("val2_on_update_ctx") do
+  a = CtxAuthor.new(bio: "b")
+  "#{a.valid?(:update)} #{render(a.errors.full_messages)}"
+end
+case_run("val2_uniqueness_scope") do
+  ScopedComment.create!(post_id: 1, body: "sc1")
+  dup = ScopedComment.new(post_id: 1, body: "sc1")
+  other = ScopedComment.new(post_id: 2, body: "sc1")
+  "#{dup.valid?} #{other.valid?}"
+end
+case_run("val2_details") do
+  a = IncAuthor.new(name: "Zoe")
+  a.valid?
+  a.errors.details
+end
+case_run("val2_where_typed") do
+  a = IncAuthor.new(name: "Zoe")
+  a.valid?
+  "#{a.errors.where(:name, :inclusion).size} #{a.errors.where(:name, :blank).size}"
+end
+case_run("val2_group_by") do
+  a = IncAuthor.new(name: "Zoe", bio: "spam")
+  a.valid?
+  a.errors.group_by_attribute.keys.sort
+end
+case_run("val2_strict") do
+  StrictAuthor.new.valid?
+rescue StandardError => e
+  "raise:#{e.class.name.split('::').last}"
+end
+
+# --- around callbacks + after_initialize/find/touch (§4) ------------------
+# (around_* use the method form: `yield` is a syntax error inside blocks
+# defined at Ruby class level)
+class AroundPost < ActiveRecord::Base
+  self.table_name = "posts"
+  around_save :ar_save
+  around_create :ar_create
+  around_update :ar_update
+  around_destroy :ar_destroy
+  before_save { $log << "bs" }
+  after_save { $log << "fs" }
+  after_create { $log << "fc" }
+  after_update { $log << "fu" }
+  before_destroy { $log << "bd" }
+  after_destroy { $log << "fd" }
+  after_initialize { $log << "init" }
+  after_find { $log << "find" }
+  after_touch { $log << "touch" }
+
+  def ar_save
+    $log << "as1"
+    yield
+    $log << "as2"
+  end
+
+  def ar_create
+    $log << "ac1"
+    yield
+    $log << "ac2"
+  end
+
+  def ar_update
+    $log << "au1"
+    yield
+    $log << "au2"
+  end
+
+  def ar_destroy
+    $log << "ad1"
+    yield
+    $log << "ad2"
+  end
+end
+
+case_run("cb2_create_order") do
+  $log.clear
+  AroundPost.create!(title: "cb2c", views: 0)
+  $log
+end
+case_run("cb2_after_find") do
+  $log.clear
+  AroundPost.first
+  $log
+end
+case_run("cb2_update_order") do
+  p = AroundPost.create!(title: "cb2u", views: 0)
+  $log.clear
+  p.update(views: 1)
+  $log
+end
+case_run("cb2_destroy_order") do
+  p = AroundPost.create!(title: "cb2d", views: 0)
+  $log.clear
+  p.destroy
+  $log
+end
+case_run("cb2_touch") do
+  p = AroundPost.create!(title: "cb2t", views: 0)
+  $log.clear
+  p.touch
+  $log
+end
+
+# --- persistence tail (§6) -------------------------------------------------
+class LegacyPost < ActiveRecord::Base
+  self.table_name = "posts"
+end
+
+case_run("p3_reload") do
+  p = Post.create!(title: "rl", views: 1)
+  Post.find(p.id).update_columns(views: 9)
+  "#{p.reload.views} #{p.reload.changed?}"
+end
+case_run("p3_update_attribute") do
+  p = Post.create!(title: "ua", views: 1)
+  result = p.update_attribute(:title, "ua2")
+  "#{result == p} #{Post.find(p.id).title}"
+end
+case_run("p3_update_attribute_skips_validations") do
+  p = Post.create!(title: "skipval", views: 1)
+  p.update_attribute(:views, -5)
+  Post.find(p.id).views
+end
+case_run("p3_increment") do
+  p = Post.create!(title: "inc", views: 5)
+  p.increment(:views)
+  "#{p.views} #{Post.find(p.id).views}"
+end
+case_run("p3_increment_bang") do
+  p = Post.create!(title: "incb", views: 5)
+  p.increment!(:views)
+  "#{p.views} #{Post.find(p.id).views}"
+end
+case_run("p3_decrement") do
+  p = Post.create!(title: "dec", views: 5)
+  "#{p.decrement(:views).views} #{Post.find(p.id).views}"
+end
+case_run("p3_toggle") do
+  # toggle returns self (in-memory flip only); toggle! returns the save Bool
+  p = Post.create!(title: "tog", views: 0, published: true)
+  p.toggle(:published)
+  s1 = "#{p.published} #{Post.find(p.id).published}"
+  r2 = p.toggle!(:published)
+  "#{s1} #{r2} #{p.published} #{Post.find(p.id).published}"
+end
+case_run("p3_restore_attributes") do
+  p = Post.create!(title: "ra", views: 1)
+  p.views = 99
+  p.restore_attributes
+  "#{p.changed?} #{p.views}"
+end
+case_run("p3_previous_changes") do
+  p = Post.create!(title: "pc", views: 1)
+  p.update(views: 2)
+  p.previous_changes.keys.include?("views")
+end
+case_run("p3_instance_delete") do
+  p = Post.create!(title: "pdel", views: 1)
+  $log.clear
+  p.delete
+  "#{$log.empty?} #{Post.exists?(p.id)}"
+end
+case_run("p3_becomes") do
+  p = Post.create!(title: "bm", views: 3)
+  l = p.becomes(LegacyPost)
+  "#{l.class.name} #{l.title} #{l.views} #{l.persisted?}"
+end
+
+# --- CollectionProxy tail (§5) ---------------------------------------------
+case_run("proxy_concat") do
+  host = Post.create!(title: "pc1", views: 0)
+  c1 = Comment.new(body: "cc1")
+  c2 = Comment.new(body: "cc2")
+  res = host.comments.concat([c1, c2])
+  "#{c1.persisted?} #{c2.persisted?} #{res.class.name.end_with?('CollectionProxy')} #{host.comments.count}"
+end
+case_run("proxy_include") do
+  host = Post.create!(title: "pc2", views: 0)
+  c = host.comments.create!(body: "ic1")
+  other = Post.first.comments.create!(body: "not-mine")
+  "#{host.comments.include?(c)} #{host.comments.include?(other)}"
+end
+case_run("proxy_destroy_one") do
+  host = Post.create!(title: "pc4", views: 0)
+  c = host.comments.create!(body: "dso1")
+  host.comments.destroy(c)
+  "#{host.comments.count} #{Comment.exists?(c.id)}"
+end
+
+# --- P1 tail: exists?/select/lock/readonly/strict_loading/pk/attribute ------
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS widgets (
+    uid bigserial PRIMARY KEY,
+    name character varying,
+    stock integer DEFAULT 3
+  )
+SQL
+ActiveRecord::Base.connection.execute("TRUNCATE widgets RESTART IDENTITY")
+
+class Widget < ActiveRecord::Base
+  self.primary_key = "uid"
+end
+
+class DefProfile < ActiveRecord::Base
+  self.table_name = "profiles"
+  belongs_to :author
+  attribute :nickname, :string, default: "anon"
+end
+
+case_run("p1_exists_hash")    { Post.exists?(title: "first") }
+case_run("p1_exists_hash_no") { Post.exists?(title: "zzz-none") }
+case_run("p1_exists_nil")     { Post.exists?(score: nil) }
+case_run("p1_exists_id")      { "#{Post.exists?(2)} #{Post.exists?(9999)}" }
+
+case_run("p1_select_map") do
+  Post.select(:id, :title).order(:id).map(&:title).last
+end
+case_run("p1_select_append") do
+  Post.select(:id).select(:title).order(:id).first.title
+end
+case_run("p1_select_reselect") do
+  Post.select(:id, :views).reselect(:title).order(:id).map(&:title).last
+end
+
+case_run("p1_lock_first") { Post.lock.order(:id).first.title }
+case_run("p1_lock_share") { Post.lock("FOR SHARE").order(:id).first.title }
+
+case_run("p1_readonly_flag")    { Post.readonly.order(:id).first.readonly? }
+case_run("p1_readonly_save")    { Post.readonly.order(:id).first.update(title: "ro") }
+case_run("p1_readonly_destroy") { Post.readonly.order(:id).first.destroy }
+
+case_run("p1_strict_load_ok")    { Post.strict_loading.order(:id).first.title }
+case_run("p1_strict_violation")  { Post.strict_loading.order(:id).first.comments.to_a }
+
+case_run("p1_pk_create_find") do
+  w = Widget.create!(name: "w1")
+  "#{w.uid} #{Widget.find(w.uid).name} #{Widget.exists?(w.uid)}"
+end
+case_run("p1_pk_first_ids") do
+  Widget.create!(name: "a")
+  Widget.create!(name: "b")
+  "#{Widget.first.name} #{Widget.ids.inspect} #{Widget.order(:uid).last.name}"
+end
+case_run("p1_pk_stock_default") { Widget.new.stock }
+case_run("p1_pk_destroy") do
+  w = Widget.create!(name: "d")
+  w.destroy
+  Widget.exists?(w.uid)
+end
+
+case_run("p1_attr_default_new")      { DefProfile.new.nickname }
+case_run("p1_attr_default_changed")  { DefProfile.new.changed? }
+case_run("p1_attr_default_override") { DefProfile.new(nickname: "zed").nickname }
+case_run("p1_attr_default_saved") do
+  a = Author.create!(name: "P1sv")
+  p = DefProfile.create!(author: a)
+  "#{p.nickname} #{p.reload.nickname}"
+end
+case_run("p1_attr_default_db_null") do
+  a = Author.create!(name: "P1dn")
+  p = DefProfile.create!(author: a)
+  p.update_columns(nickname: nil)
+  p.reload.nickname
+end
+
+# --- P2: through / polymorphic / HABTM / counter_cache / touch ---------------
+ActiveRecord::Base.connection.execute(<<~SQL)
+  ALTER TABLE posts ADD COLUMN IF NOT EXISTS author_id bigint
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  ALTER TABLE posts ADD COLUMN IF NOT EXISTS comments_count integer NOT NULL DEFAULT 0
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS tags (
+    id bigserial PRIMARY KEY,
+    name character varying NOT NULL
+  )
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS articles (
+    id bigserial PRIMARY KEY,
+    title character varying NOT NULL
+  )
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS articles_tags (
+    article_id bigint NOT NULL,
+    tag_id bigint NOT NULL
+  )
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS pictures (
+    id bigserial PRIMARY KEY,
+    imageable_type character varying NOT NULL,
+    imageable_id bigint NOT NULL,
+    caption character varying
+  )
+SQL
+ActiveRecord::Base.connection.execute("TRUNCATE tags, articles_tags, articles, pictures RESTART IDENTITY")
+ActiveRecord::Base.connection.schema_cache.clear!
+
+class TAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  has_many :t_posts, class_name: "TPost", foreign_key: "author_id"
+  has_many :t_comments, through: :t_posts
+end
+
+class TPost < ActiveRecord::Base
+  self.table_name = "posts"
+  belongs_to :t_author, class_name: "TAuthor", foreign_key: "author_id", optional: true
+  has_many :t_comments, class_name: "TComment", foreign_key: "post_id", inverse_of: :t_post
+end
+
+class TComment < ActiveRecord::Base
+  self.table_name = "comments"
+  belongs_to :t_post, class_name: "TPost", foreign_key: "post_id",
+             counter_cache: :comments_count, inverse_of: :t_comments
+end
+
+class PolyPost < ActiveRecord::Base
+  self.table_name = "posts"
+  has_many :pictures, as: :imageable
+end
+
+class PolyAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  has_many :pictures, as: :imageable
+end
+
+class Picture < ActiveRecord::Base
+  belongs_to :imageable, polymorphic: true
+end
+
+class Article < ActiveRecord::Base
+  has_and_belongs_to_many :tags
+end
+
+class Tag < ActiveRecord::Base
+  has_and_belongs_to_many :articles
+end
+
+class TouchPost < ActiveRecord::Base
+  self.table_name = "posts"
+  belongs_to :t_author, class_name: "TAuthor", foreign_key: "author_id",
+             touch: true, optional: true
+end
+
+case_run("p2_setup") do
+  conn = ActiveRecord::Base.connection
+  conn.execute("UPDATE posts SET author_id = NULL, comments_count = 0")
+  conn.execute(<<~SQL)
+    UPDATE posts SET comments_count = (SELECT count(*) FROM comments WHERE comments.post_id = posts.id)
+  SQL
+  "#{Post.where("comments_count > 0").count} #{Post.count}"
+end
+
+case_run("p2_through") do
+  a = TAuthor.create!(name: "TA1")
+  p1 = TPost.create!(title: "tp1", t_author: a)
+  p2 = TPost.create!(title: "tp2", t_author: a)
+  TComment.create!(t_post: p1, body: "tc1")
+  TComment.create!(t_post: p1, body: "tc2")
+  TComment.create!(t_post: p2, body: "tc3")
+  TPost.create!(title: "other")
+  "#{a.t_posts.count} #{a.t_comments.count} #{a.t_comments.map(&:body).sort.inspect} #{a.t_comment_ids.sort.inspect}"
+end
+
+case_run("p2_counter_cache") do
+  a = TAuthor.create!(name: "TA2")
+  p = TPost.create!(title: "ccp", t_author: a)
+  c1 = TComment.create!(t_post: p, body: "cc1")
+  c2 = TComment.create!(t_post: p, body: "cc2")
+  mid = TPost.find(p.id).comments_count
+  c1.destroy
+  "#{mid} #{TPost.find(p.id).comments_count}"
+end
+
+case_run("p2_inverse_of") do
+  a = TAuthor.create!(name: "TInv")
+  p = TPost.create!(title: "inv", t_author: a)
+  c = p.t_comments.build(body: "ic")
+  "#{c.t_post.equal?(p)} #{c.post_id == p.id} #{c.new_record?}"
+end
+
+case_run("p2_polymorphic") do
+  pp = PolyPost.create!(title: "poly")
+  pa = PolyAuthor.create!(name: "PA")
+  Picture.create!(imageable: pp, caption: "cap1")
+  Picture.create!(imageable: pa, caption: "cap2")
+  "#{pp.pictures.count} #{pa.pictures.count} #{pp.pictures.order(:id).first.caption} #{Picture.order(:id).first.imageable.class.name} #{Picture.order(:id).last.imageable.class.name}"
+end
+
+case_run("p2_habtm") do
+  hp = Article.create!(title: "habtm")
+  t1 = Tag.create!(name: "red")
+  t2 = Tag.create!(name: "blue")
+  hp.tags << t1
+  hp.tags << t2
+  "#{hp.tags.count} #{hp.tags.map(&:name).sort.inspect} #{hp.tag_ids.sort.inspect} #{t1.articles.count}"
+end
+
+case_run("p2_habtm_delete") do
+  hp = Article.create!(title: "hdel")
+  t1 = Tag.create!(name: "green")
+  t2 = Tag.create!(name: "white")
+  hp.tags << t1
+  hp.tags << t2
+  hp.tags.delete(t1)
+  "#{hp.tags.count} #{Tag.count} #{t1.articles.count}"
+end
+
+case_run("p2_belongs_to_touch") do
+  a = TAuthor.create!(name: "TTo")
+  a.update_columns(updated_at: Time.utc(2020, 1, 1))
+  p = TouchPost.create!(title: "tp", t_author: a)
+  after_create = (a.reload.updated_at.year == 2020)
+  p.update!(title: "tp2")
+  after_update = (a.reload.updated_at.year == 2020)
+  p.destroy
+  after_destroy = (a.reload.updated_at.year == 2020)
+  "#{after_create} #{after_update} #{after_destroy}"
+end
+
+# --- P2: eager loading (includes/preload), query-count oracle ----------------
+$qc = 0
+ActiveSupport::Notifications.subscribe("sql.active_record") { $qc += 1 }
+
+def qc
+  before = $qc
+  out = yield
+  "#{render(out)} #{$qc - before}"
+end
+
+case_run("p2_includes_to_a")  { qc { Post.includes(:comments).to_a.size } }
+case_run("p2_includes_first") { qc { Post.where(views: 1).includes(:comments).first.comments.size } }
+case_run("p2_includes_bt")    { qc { Comment.includes(:post).where(body: "c1").to_a.map(&:post_id).inspect } }
+case_run("p2_lazy_control")   { qc { Comment.where(body: "c2").first.post.class.name } }
+
+# --- P3: optimistic locking + STI ---------------------------------------------
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS gadgets (
+    id bigserial PRIMARY KEY,
+    name character varying,
+    lock_version integer NOT NULL DEFAULT 0
+  )
+SQL
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS vehicles (
+    id bigserial PRIMARY KEY,
+    type character varying,
+    name character varying,
+    wheels integer
+  )
+SQL
+ActiveRecord::Base.connection.execute("TRUNCATE gadgets, vehicles RESTART IDENTITY")
+ActiveRecord::Base.connection.schema_cache.clear!
+
+class Gadget < ActiveRecord::Base
+end
+
+class Vehicle < ActiveRecord::Base
+end
+
+class Car < Vehicle
+end
+
+class Motorbike < Vehicle
+end
+
+case_run("p3_lock_version_incr") do
+  g = Gadget.create!(name: "g2")
+  v1 = g.lock_version
+  g.update!(name: "g2b")
+  "#{v1} #{g.lock_version} #{Gadget.find(g.id).lock_version}"
+end
+
+case_run("p3_stale_object") do
+  g1 = Gadget.create!(name: "g1")
+  g2 = Gadget.find(g1.id)
+  g1.update!(name: "g1a")
+  g2.update!(name: "g1b")
+end
+
+case_run("p3_sti_create_find") do
+  v = Vehicle.create!(name: "generic")
+  c = Car.create!(name: "sedan", wheels: 4)
+  m = Motorbike.create!(name: "fast", wheels: 2)
+  "#{Vehicle.count} #{Car.count} #{Motorbike.count} #{Vehicle.order(:id).map(&:type).compact.inspect} #{Vehicle.find(c.id).class.name} #{c.type}"
+end
+
+case_run("p3_sti_scopes") do
+  "#{Car.where(wheels: 4).count} #{Car.first.class.name} #{Car.first.name}"
+end
+
+# --- P4: enum / store / secure_token / cache_key / attr_readonly / alias ------
+ActiveRecord::Base.connection.execute(<<~SQL)
+  CREATE TABLE IF NOT EXISTS badges (
+    id bigserial PRIMARY KEY,
+    name character varying,
+    status integer,
+    settings jsonb,
+    token character varying
+  )
+SQL
+ActiveRecord::Base.connection.execute("TRUNCATE badges RESTART IDENTITY")
+ActiveRecord::Base.connection.schema_cache.clear!
+
+class Badge < ActiveRecord::Base
+  enum :status, { draft: 0, active: 1, archived: 2 }
+  store :settings, accessors: [:theme]
+  has_secure_token
+end
+
+class RBadge < ActiveRecord::Base
+  self.table_name = "badges"
+  attr_readonly :name
+end
+
+class ABadge < ActiveRecord::Base
+  self.table_name = "badges"
+  alias_attribute :title, :name
+end
+
+case_run("p4_enum") do
+  b = Badge.create!(name: "b1", status: "active")
+  "#{b.status.inspect} #{b.active?} #{b.draft?} #{Badge.active.count} #{Badge.where(status: :active).count}"
+end
+
+case_run("p4_enum_bang") do
+  b = Badge.create!(name: "b2", status: :draft)
+  b.archived!
+  "#{b.status.inspect} #{Badge.find(b.id).status.inspect} #{Badge.statuses.inspect}"
+end
+
+case_run("p4_store") do
+  b = Badge.create!(name: "b3")
+  b.theme = "dark"
+  b.save!
+  "#{Badge.find(b.id).theme.inspect} #{Badge.find(b.id).settings["theme"].inspect}"
+end
+
+case_run("p4_secure_token") do
+  b = Badge.create!(name: "b4")
+  "#{b.token.size} #{Badge.find(b.id).token == b.token}"
+end
+
+case_run("p4_cache_key") do
+  b = Badge.create!(name: "b5")
+  "#{b.cache_key.split("-").first.inspect} #{Badge.new.cache_key} #{Post.first.cache_key.split("-").first.inspect}"
+end
+
+case_run("p4_attr_readonly") do
+  b = RBadge.create!(name: "ro1")
+  result = b.update!(name: "ro2")
+  "#{result} #{RBadge.find(b.id).name.inspect}"
+end
+
+case_run("p4_alias_attribute") do
+  b = ABadge.create!(title: "alias-me")
+  "#{b.title.inspect} #{ABadge.where(title: "alias-me").count} #{b.name.inspect}"
+end
+
+class NAuthor < ActiveRecord::Base
+  self.table_name = "authors"
+  has_many :n_posts, class_name: "NPost", foreign_key: "author_id"
+  accepts_nested_attributes_for :n_posts, allow_destroy: true, reject_if: :all_blank
+end
+
+class NPost < ActiveRecord::Base
+  self.table_name = "posts"
+  belongs_to :n_author, class_name: "NAuthor", foreign_key: "author_id", optional: true
+  validates :title, presence: true, length: { maximum: 5 }
+end
+
+case_run("p5_nested_create") do
+  a = NAuthor.create!(name: "NA1", n_posts_attributes: [{ title: "np1" }, { title: "np2" }])
+  "#{a.persisted?} #{a.n_posts.count} #{a.n_posts.map(&:title).sort.inspect}"
+end
+
+case_run("p5_nested_update_add") do
+  a = NAuthor.create!(name: "NA2")
+  p = NPost.create!(title: "base", n_author: a)
+  a.update!(n_posts_attributes: [{ id: p.id, title: "upd" }, { title: "added" }])
+  "#{NPost.find(p.id).title.inspect} #{a.reload.n_posts.count}"
+end
+
+case_run("p5_nested_destroy") do
+  a = NAuthor.create!(name: "NA3")
+  p1 = NPost.create!(title: "d1", n_author: a)
+  p2 = NPost.create!(title: "d2", n_author: a)
+  a.update!(n_posts_attributes: [{ id: p2.id, _destroy: true }])
+  "#{a.reload.n_posts.count} #{NPost.exists?(p2.id)}"
+end
+
+case_run("p5_nested_reject") do
+  a = NAuthor.create!(name: "NA4")
+  a.update!(n_posts_attributes: [{ title: "" }, { title: "kept" }])
+  "#{a.reload.n_posts.count} #{a.n_posts.map(&:title).inspect}"
+end
+
+case_run("p5_nested_invalid") do
+  a = NAuthor.create(name: "NA5", n_posts_attributes: [{ title: "waytoolong" }])
+  "#{a.persisted?} #{NAuthor.where(name: "NA5").count} #{a.errors.full_messages.inspect}"
+end

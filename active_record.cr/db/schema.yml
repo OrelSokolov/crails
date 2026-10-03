@@ -719,6 +719,14 @@ posts:
     type: timestamp
     nullable: 'NO'
     default:
+  - name: author_id
+    type: int8
+    nullable: 'YES'
+    default:
+  - name: comments_count
+    type: int4
+    nullable: 'NO'
+    default: '0'
 authors:
   columns:
   - name: id
@@ -770,4 +778,120 @@ profiles:
   - name: updated_at
     type: timestamp
     nullable: 'NO'
+    default:
+widgets:
+  columns:
+  - name: uid
+    type: int8
+    nullable: 'NO'
+    default: nextval('widgets_uid_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: stock
+    type: int4
+    nullable: 'YES'
+    default: '3'
+tags:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('tags_id_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: 'NO'
+    default:
+articles:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('articles_id_seq'::regclass)
+  - name: title
+    type: varchar
+    nullable: 'NO'
+    default:
+articles_tags:
+  columns:
+  - name: article_id
+    type: int8
+    nullable: 'NO'
+    default:
+  - name: tag_id
+    type: int8
+    nullable: 'NO'
+    default:
+pictures:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('pictures_id_seq'::regclass)
+  - name: imageable_type
+    type: varchar
+    nullable: 'NO'
+    default:
+  - name: imageable_id
+    type: int8
+    nullable: 'NO'
+    default:
+  - name: caption
+    type: varchar
+    nullable: 'YES'
+    default:
+gadgets:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('gadgets_id_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: lock_version
+    type: int4
+    nullable: 'NO'
+    default: '0'
+vehicles:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('vehicles_id_seq'::regclass)
+  - name: type
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: name
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: wheels
+    type: int4
+    nullable: 'YES'
+    default:
+badges:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('badges_id_seq'::regclass)
+  - name: name
+    type: varchar
+    nullable: 'YES'
+    default:
+  - name: status
+    type: int4
+    nullable: 'YES'
+    default:
+  - name: settings
+    type: jsonb
+    nullable: 'YES'
+    default:
+  - name: token
+    type: varchar
+    nullable: 'YES'
     default:

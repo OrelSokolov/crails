@@ -91,3 +91,124 @@ tx_after_commit_update_destroy	"[\"after_commit\", \"after_commit\"]"
 tx_isolation	7
 tx_with_lock	5
 tx_lock_bang	"true \"txlb\""
+scope_basic	1
+scope_chain	A["second"]
+scope_arg	6
+scope_ds	1
+scope_ds_unscoped	23
+scope_ds_where	0
+agg_sum	81
+agg_minimum	0
+agg_maximum	55
+agg_average	"3.52"
+rel_or	1
+rel_or_kwargs	A[2]
+rel_group_count	H{false=>22,true=>1}
+rel_having	H{}
+rel_distinct_pluck	A[false,true]
+rel_joins_count	4
+rel_joins_pluck	A["updbang","second"]
+rel_left_joins	21
+rel_reorder	A[1,2,3]
+rel_in_order_of	A[3,1,2]
+rel_update_all	"1 [777]"
+rel_touch_all	true
+rel_destroy_all	"2 0"
+rel_delete_all	"1 0"
+rel_find_in_batches	A[A[41,42],A[43,44],A[45]]
+rel_in_batches	A[2,2,1]
+rel_none	"0 0"
+rel_except	true
+rel_only	true
+rel_merge	1
+rel_annotate	true
+val2_inclusion_bad	"false A[\"Name is not included in the list\"]"
+val2_inclusion_blank	true
+val2_inclusion_ok	true
+val2_exclusion	"false A[\"Bio is reserved\"]"
+val2_comparison_lt	"false A[\"Age must be greater than or equal to 18\"]"
+val2_comparison_ok	true
+val2_confirmation_bad	"false A[\"Email confirmation doesn't match Email\"]"
+val2_confirmation_ok	true
+val2_acceptance_false	"true A[]"
+val2_acceptance_true	true
+val2_if_skipped	true
+val2_if_applied	"false A[\"Bio is too long (maximum is 5 characters)\"]"
+val2_on_create_ok	true
+val2_on_create_missing	"false A[\"Bio can't be blank\"]"
+val2_on_update_ctx	"false A[\"Name can't be blank\"]"
+val2_uniqueness_scope	"false true"
+val2_details	H{:name=>A[H{:error=>:inclusion,:value=>"Zoe"}]}
+val2_where_typed	"1 0"
+val2_group_by	A[:bio,:name]
+val2_strict	"raise:StrictValidationFailed"
+cb2_create_order	A["init","as1","bs","ac1","ac2","fc","as2","fs"]
+cb2_after_find	A["find","init"]
+cb2_update_order	A["as1","bs","au1","au2","fu","as2","fs"]
+cb2_destroy_order	A["ad1","bd","ad2","fd"]
+cb2_touch	A["touch"]
+p3_reload	"9 false"
+p3_update_attribute	"false ua2"
+p3_update_attribute_skips_validations	-5
+p3_increment	"6 5"
+p3_increment_bang	"6 6"
+p3_decrement	"4 5"
+p3_toggle	"false true true true true"
+p3_restore_attributes	"false 1"
+p3_previous_changes	true
+p3_instance_delete	"true false"
+p3_becomes	"LegacyPost bm 3 true"
+proxy_concat	"true true true 2"
+proxy_include	"true false"
+proxy_destroy_one	"0 false"
+p1_exists_hash	false
+p1_exists_hash_no	false
+p1_exists_nil	true
+p1_exists_id	"true false"
+p1_select_map	"pc4"
+p1_select_append	"updbang"
+p1_select_reselect	"pc4"
+p1_lock_first	"updbang"
+p1_lock_share	"updbang"
+p1_readonly_flag	true
+p1_readonly_save	raise:ActiveRecord::ReadOnlyRecord
+p1_readonly_destroy	raise:ActiveRecord::ReadOnlyRecord
+p1_strict_load_ok	"updbang"
+p1_strict_violation	raise:ActiveRecord::StrictLoadingViolationError
+p1_pk_create_find	"1 w1 true"
+p1_pk_first_ids	"w1 [1, 2, 3] b"
+p1_pk_stock_default	3
+p1_pk_destroy	false
+p1_attr_default_new	"anon"
+p1_attr_default_changed	true
+p1_attr_default_override	"zed"
+p1_attr_default_saved	"anon anon"
+p1_attr_default_db_null	nil
+p2_setup	"4 44"
+p2_through	"2 3 [\"tc1\", \"tc2\", \"tc3\"] [13, 14, 15]"
+p2_counter_cache	"2 1"
+p2_inverse_of	"true true true"
+p2_polymorphic	"1 1 cap1 PolyPost PolyAuthor"
+p2_habtm	"2 [\"blue\", \"red\"] [1, 2] 1"
+p2_habtm_delete	"1 4 0"
+p2_belongs_to_touch	"false false false"
+p2_includes_to_a	"50 2"
+p2_includes_first	"0 2"
+p2_includes_bt	"\"[1]\" 2"
+p2_lazy_control	"\"Post\" 2"
+p3_lock_version_incr	"0 1 1"
+p3_stale_object	raise:ActiveRecord::StaleObjectError
+p3_sti_create_find	"3 1 1 [\"Car\", \"Motorbike\"] Car Car"
+p3_sti_scopes	"1 Car sedan"
+p4_enum	"\"active\" true false 1 1"
+p4_enum_bang	"\"archived\" \"archived\" {\"draft\" => 0, \"active\" => 1, \"archived\" => 2}"
+p4_store	"\"dark\" \"dark\""
+p4_secure_token	"24 true"
+p4_cache_key	"\"badges/5\" badges/new \"posts/1\""
+p4_attr_readonly	"true \"ro1\""
+p4_alias_attribute	"\"alias-me\" 1 \"alias-me\""
+p5_nested_create	"true 2 [\"np1\", \"np2\"]"
+p5_nested_update_add	"\"upd\" 2"
+p5_nested_destroy	"1 false"
+p5_nested_reject	"1 [\"kept\"]"
+p5_nested_invalid	"false 0 [\"N posts title is too long (maximum is 5 characters)\"]"

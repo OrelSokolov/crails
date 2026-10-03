@@ -41,6 +41,33 @@ module ActiveRecord
     def __run_after_rollback(event : Symbol) : Nil
     end
 
+    def __run_after_initialize : Nil
+    end
+
+    def __run_after_find : Nil
+    end
+
+    def __run_after_touch : Nil
+    end
+
+    # Around-callback chain walkers: default passes straight through; the
+    # per-model codegen in base.cr overrides with a depth-dispatch case.
+    def __wrap_around_save(depth : Int32, action : Proc(Nil)) : Nil
+      action.call
+    end
+
+    def __wrap_around_create(depth : Int32, action : Proc(Nil)) : Nil
+      action.call
+    end
+
+    def __wrap_around_update(depth : Int32, action : Proc(Nil)) : Nil
+      action.call
+    end
+
+    def __wrap_around_destroy(depth : Int32, action : Proc(Nil)) : Nil
+      action.call
+    end
+
     # --- DSL (flat definitions: a macro cannot be emitted by a macro) ---
 
     macro before_validation(method_name = nil, &block)
@@ -188,6 +215,117 @@ module ActiveRecord
       {% else %}
         def after_rollback__cb_{{n.id}}(event : Symbol) : Nil
           {% if on %}return unless __tx_event_match?(event, {{on}}){% end %}
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    # --- around callbacks (§4) --------------------------------------------
+    # around_save { log1; yield; log2 } — block form (the spliced `yield`
+    # forwards to the continuation), or method form: `around_save :m` where
+    # `def m; ...; yield; ...; end`.
+    # Order (oracle-verified on 8.1.4): around_save wraps before_save;
+    # around_create/update exit BEFORE after_create/update; around_destroy
+    # wraps before_destroy and exits before after_destroy.
+
+    macro around_save(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("around_save__cb_") }.size %}
+      {% if method_name %}
+        def around_save__cb_{{n.id}}(&inner : ->) : Nil
+          {{method_name.id}}(&inner)
+        end
+      {% else %}
+        def around_save__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro around_create(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("around_create__cb_") }.size %}
+      {% if method_name %}
+        def around_create__cb_{{n.id}}(&inner : ->) : Nil
+          {{method_name.id}}(&inner)
+        end
+      {% else %}
+        def around_create__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro around_update(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("around_update__cb_") }.size %}
+      {% if method_name %}
+        def around_update__cb_{{n.id}}(&inner : ->) : Nil
+          {{method_name.id}}(&inner)
+        end
+      {% else %}
+        def around_update__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro around_destroy(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("around_destroy__cb_") }.size %}
+      {% if method_name %}
+        def around_destroy__cb_{{n.id}}(&inner : ->) : Nil
+          {{method_name.id}}(&inner)
+        end
+      {% else %}
+        def around_destroy__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    # --- lifecycle observers (§4) -------------------------------------------
+
+    macro after_initialize(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("after_initialize__cb_") }.size %}
+      {% if method_name %}
+        def after_initialize__cb_{{n.id}} : Nil
+          {{method_name.id}}
+          nil
+        end
+      {% else %}
+        def after_initialize__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro after_find(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("after_find__cb_") }.size %}
+      {% if method_name %}
+        def after_find__cb_{{n.id}} : Nil
+          {{method_name.id}}
+          nil
+        end
+      {% else %}
+        def after_find__cb_{{n.id}} : Nil
+          {{block.body}}
+          nil
+        end
+      {% end %}
+    end
+
+    macro after_touch(method_name = nil, &block)
+      {% n = @type.methods.select { |m| m.name.stringify.starts_with?("after_touch__cb_") }.size %}
+      {% if method_name %}
+        def after_touch__cb_{{n.id}} : Nil
+          {{method_name.id}}
+          nil
+        end
+      {% else %}
+        def after_touch__cb_{{n.id}} : Nil
           {{block.body}}
           nil
         end

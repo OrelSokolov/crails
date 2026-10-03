@@ -65,6 +65,18 @@ class AlterPosts < ActiveRecord::Migration
   end
 end
 
+class ModifyPosts < ActiveRecord::Migration
+  def change
+    change_table :posts do |t|
+      t.string :tagline
+      t.remove :published_on
+      t.index :tagline
+    end
+    create_join_table :posts, :tags
+    add_check_constraint :posts, "views >= 0", name: "posts_views_check"
+  end
+end
+
 class CreateTempThings < ActiveRecord::Migration
   def change
     create_table :temp_things do |t|
@@ -79,6 +91,19 @@ class DropTempThings < ActiveRecord::Migration
   end
 end
 
+class PartialAndReversible < ActiveRecord::Migration
+  def change
+    add_index :posts, :title, where: "views > 0"
+    reversible do |dir|
+      dir.up   { execute "CREATE TABLE rev_marks (id bigserial PRIMARY KEY, note text)" }
+      dir.down { execute "DROP TABLE IF EXISTS rev_marks" }
+    end
+    change_table :posts do |t|
+      t.index :content, where: "views > 0"
+    end
+  end
+end
+
 class LegacyWidgets < ActiveRecord::Migration
   def up
     execute "CREATE TABLE legacy_widgets (id bigserial PRIMARY KEY, note text)"
@@ -90,7 +115,8 @@ class LegacyWidgets < ActiveRecord::Migration
 end
 
 MIGRATIONS = [CreatePosts, CreateAuthors, CreateComments, AlterPosts,
-              CreateTempThings, DropTempThings, LegacyWidgets]
+              ModifyPosts, CreateTempThings, DropTempThings,
+              PartialAndReversible, LegacyWidgets]
 
 # --- normalized schema dump (mirror of oracle/migrations.rb) ---------------
 

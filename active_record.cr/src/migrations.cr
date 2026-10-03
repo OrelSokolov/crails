@@ -105,9 +105,10 @@ module ActiveRecord
       end
 
       struct Index
-        getter name, columns, unique
+        getter name, columns, unique, where
 
-        def initialize(@name : String, @columns : Array(String), @unique : Bool)
+        def initialize(@name : String, @columns : Array(String), @unique : Bool,
+                       @where : String? = nil)
         end
       end
 
@@ -150,14 +151,16 @@ module ActiveRecord
         end
       end
 
-      def add_index(columns : Array(String), unique : Bool = false, name : String? = nil)
+      def add_index(columns : Array(String), unique : Bool = false,
+                    name : String? = nil, where : String? = nil)
         iname = name || Migrations.index_name(@table_name, columns)
-        indexes << Index.new(iname, columns, unique)
+        indexes << Index.new(iname, columns, unique, where)
       end
 
-      def index(columns : Symbol | String | Array(Symbol | String), unique : Bool = false, name : String? = nil)
+      def index(columns : Symbol | String | Array(Symbol | String), unique : Bool = false,
+                name : String? = nil, where : String? = nil)
         cols = columns.is_a?(Array) ? columns.map(&.to_s) : [columns.to_s]
-        add_index(cols, unique, name)
+        add_index(cols, unique, name, where)
       end
 
       # table name is set by create_table before yielding the block
@@ -186,14 +189,21 @@ module ActiveRecord
       td = TableDefinition.build(table)
       block.call(td)
       cols = String.build do |s|
-        s << %("#{primary_key}" bigserial PRIMARY KEY)
-        td.columns.each { |c| s << ", " << c.to_sql }
+        if id
+          s << %("#{primary_key}" bigserial PRIMARY KEY)
+          s << ", " unless td.columns.empty?
+        end
+        td.columns.each_with_index do |c, i|
+          s << ", " if i > 0
+          s << c.to_sql
+        end
       end
       Base.connection.exec(%(CREATE TABLE "#{table}" (#{cols})))
       td.indexes.each do |i|
         unique = i.unique ? "UNIQUE " : ""
+        where_sql = i.where ? " WHERE (#{i.where})" : ""
         Base.connection.exec(
-          %(CREATE #{unique}INDEX "#{i.name}" ON "#{table}" (#{i.columns.map { |c| %("#{c}") }.join(", ")})))
+          %(CREATE #{unique}INDEX "#{i.name}" ON "#{table}" (#{i.columns.map { |c| %("#{c}") }.join(", ")})#{where_sql}))
       end
       td.foreign_keys.each do |fk|
         Base.connection.exec(
@@ -222,6 +232,100 @@ module ActiveRecord
 
     def recreate_table(td : TableDefinition) : Nil
       create_table(td.name) { |t| td.columns.each { |c| t.columns << c } }
+    end
+
+    # change_table :posts do |t|
+    #   t.string :tagline        # → add_column (reversible)
+    #   t.remove :published_on   # → remove_column (irreversible)
+    #   t.index :tagline         # → add_index (reversible)
+    # end
+    # The proxy delegates to the reversible schema statements, inheriting
+    # their recording semantics.
+    def change_table(name : Symbol | String, &block : ChangeTable ->) : Nil
+      block.call(ChangeTable.new(self, name.to_s))
+    end
+
+    struct ChangeTable
+      def initialize(@migration : Migration, @table : String)
+      end
+
+      def column(name : Symbol | String, type : Symbol | String, **opts) : Nil
+        @migration.add_column(@table, name, type, **opts)
+      end
+
+      {% for t in %w(string text integer bigint float decimal boolean datetime
+                     time date json jsonb uuid binary) %}
+        def {{t.id}}(name : Symbol | String, **opts)
+          column(name, {{t}}, **opts)
+        end
+      {% end %}
+
+      def remove(name : Symbol | String) : Nil
+        @migration.remove_column(@table, name)
+      end
+
+      def rename(name : Symbol | String, new_name : Symbol | String) : Nil
+        @migration.rename_column(@table, name, new_name)
+      end
+
+      def change_default(name : Symbol | String, default : Value?) : Nil
+        @migration.change_column_default(@table, name, default)
+      end
+
+      def change_null(name : Symbol | String, null : Bool) : Nil
+        @migration.change_column_null(@table, name, null)
+      end
+
+      def index(columns : Symbol | String | Array(Symbol | String),
+                unique : Bool = false, name : String? = nil,
+                where : String? = nil) : Nil
+        @migration.add_index(@table, columns, unique, name, where)
+      end
+    end
+
+    # Rails create_join_table :posts, :tags → posts_tags(post_id, tag_id),
+    # no primary key. Table name is the alphabetically sorted pair, columns
+    # are the singularized sorted names. (Oracle-verified: no index is
+    # created unless index: true is passed.)
+    def create_join_table(a : Symbol | String, b : Symbol | String,
+                          index : Bool = false) : Nil
+      create_join_table(a, b, index) { |_t| nil }
+    end
+
+    def create_join_table(a : Symbol | String, b : Symbol | String,
+                          index : Bool = true, & : TableDefinition ->) : Nil
+      parts = [a.to_s, b.to_s].sort
+      table = "#{parts[0]}_#{parts[1]}"
+      # Rails: columns are named from the SORTED pair, singularized
+      col_a = "#{parts[0].rchop('s')}_id"
+      col_b = "#{parts[1].rchop('s')}_id"
+      extra = TableDefinition.build(table)
+      yield extra
+      create_table(table, id: false) do |t|
+        t.bigint(col_a, null: false)
+        t.bigint(col_b, null: false)
+        t.index([col_a, col_b]) if index
+        extra.columns.each { |c| t.columns << c }
+        extra.@indexes.each { |i| t.indexes << i }
+      end
+    end
+
+    # Check constraints (not covered by the schema dump oracle — SQL is
+    # exercised through the migration suite).
+    def add_check_constraint(table : Symbol | String, expression : String,
+                             name : String? = nil) : Nil
+      tbl = table.to_s
+      if recording?
+        cname = name || "chk_#{tbl}_#{Digest::SHA256.hexdigest(expression)[0, 10]}"
+        record(-> { Base.connection.exec(%(ALTER TABLE "#{tbl}" DROP CONSTRAINT IF EXISTS "#{cname}")); nil })
+        return
+      end
+      cname = name || "chk_#{tbl}_#{Digest::SHA256.hexdigest(expression)[0, 10]}"
+      Base.connection.exec(%(ALTER TABLE "#{tbl}" ADD CONSTRAINT "#{cname}" CHECK (#{expression})))
+    end
+
+    def remove_check_constraint(table : Symbol | String, name : Symbol | String) : Nil
+      Base.connection.exec(%(ALTER TABLE "#{table}" DROP CONSTRAINT IF EXISTS "#{name}"))
     end
 
     def add_column(table : Symbol | String, name : Symbol | String,
@@ -290,7 +394,8 @@ module ActiveRecord
     end
 
     def add_index(table : Symbol | String, columns : Symbol | String | Array(Symbol | String),
-                  unique : Bool = false, name : String? = nil) : Nil
+                  unique : Bool = false, name : String? = nil,
+                  where : String? = nil) : Nil
       tbl = table.to_s
       cols = columns.is_a?(Array) ? columns.map(&.to_s) : [columns.to_s]
       iname = name || Migrations.index_name(tbl, cols)
@@ -299,8 +404,9 @@ module ActiveRecord
         return
       end
       unique_sql = unique ? "UNIQUE " : ""
+      where_sql = where ? " WHERE (#{where})" : ""
       Base.connection.exec(
-        %(CREATE #{unique_sql}INDEX "#{iname}" ON "#{tbl}" (#{cols.map { |c| %("#{c}") }.join(", ")})))
+        %(CREATE #{unique_sql}INDEX "#{iname}" ON "#{tbl}" (#{cols.map { |c| %("#{c}") }.join(", ")})#{where_sql}))
     end
 
     def remove_index(table : Symbol | String, columns : Symbol | String | Array(Symbol | String),
@@ -373,6 +479,43 @@ module ActiveRecord
         raise IrreversibleMigration.new("execute is not reversible (use up/down)")
       end
       Base.connection.exec(sql)
+    end
+
+    # reversible do |dir|
+    #   dir.up   { execute "..." }
+    #   dir.down { execute "..." }
+    # end
+    # Up: runs the up-block in place. Down (inside a recorded `change`):
+    # records the down-block as the inverse, without running the up-block.
+    def reversible(&block : ReversibleDirection ->) : Nil
+      dir = ReversibleDirection.new
+      block.call(dir)
+      if recording?
+        record(-> { dir.__run_down; nil })
+      else
+        dir.__run_up
+      end
+    end
+
+    class ReversibleDirection
+      @up_block : Proc(Nil)? = nil
+      @down_block : Proc(Nil)? = nil
+
+      def up(&block : Proc(Nil)) : Nil
+        @up_block = block
+      end
+
+      def down(&block : Proc(Nil)) : Nil
+        @down_block = block
+      end
+
+      def __run_up : Nil
+        @up_block.try(&.call)
+      end
+
+      def __run_down : Nil
+        @down_block.try(&.call)
+      end
     end
 
     # --- command recorder ---------------------------------------------------

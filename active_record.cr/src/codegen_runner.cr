@@ -53,6 +53,7 @@ end
 
 CLASS_NAME = ARGV[0]? || abort "codegen_runner: class name argument required"
 TABLE = (ARGV[1]? && !ARGV[1].empty?) ? ARGV[1] : pluralize(underscore(CLASS_NAME))
+PRIMARY_KEY = (ARGV[2]? && !ARGV[2].empty?) ? ARGV[2] : "id"
 SCHEMA_PATH = ENV["CRAILS_SCHEMA"]? || "db/schema.yml"
 
 def crystal_type(udt : String) : String
@@ -78,6 +79,10 @@ code << "def self.table_name : String"
 code << "  #{TABLE.inspect}"
 code << "end"
 
+code << "def self.primary_key : String"
+code << "  #{PRIMARY_KEY.inspect}"
+code << "end"
+
 # Crystal keywords that cannot be used as named-argument parameter names
 # (getter/setter still work — see ar_codegen).
 RESERVED_PARAMS = %w(
@@ -96,7 +101,7 @@ if File.exists?(SCHEMA_PATH)
   abort "codegen_runner: table #{TABLE} not found in #{SCHEMA_PATH}" unless table
   table["columns"].as_a.each do |c|
     name = c["name"].as_s
-    next if name == "id"
+    next if name == "id" || name == PRIMARY_KEY
     type = c["type"].as_s
     cols << {
       name:    name,
@@ -131,15 +136,19 @@ def default_literal(type : String, default : String?) : String
   end
 end
 
-names = ["id"] + cols.map(&.[:name])
+names = [PRIMARY_KEY] + cols.map(&.[:name])
 code << "def self.__column_names : Array(String)"
 code << "  #{names.inspect}"
 code << "end"
 
+code << "def self.__has_type_column? : Bool"
+code << "  #{cols.any? { |c| c[:name] == "type"}.inspect}"
+code << "end"
+
 if cols.empty?
-  code << "ar_codegen([] of {String, String, Bool, Bool, String})"
+  code << "ar_codegen(#{PRIMARY_KEY.inspect}, [] of {String, String, Bool, Bool, String})"
 else
-  code << "ar_codegen(#{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}, #{c[:default]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
+  code << "ar_codegen(#{PRIMARY_KEY.inspect}, #{cols.map { |c| %([#{c[:name].inspect}, #{c[:type].inspect}, #{c[:bool]}, #{c[:kw_ok]}, #{c[:default]}]) }.join(", ").insert(0, "[").insert(-1, "]")})"
 end
 
 code << "def to_param : String"
