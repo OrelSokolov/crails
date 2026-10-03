@@ -80,6 +80,12 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 ## Фаза 2 — продакшен-готовность (порядок: 7 → 11 → 12 → 15)
 
 ### Iteration 7 — очереди/кэш/pubsub: PG по умолчанию, Redis — опция
+Гексагональный pass: каждый новый адаптер пишется против явного порта —
+module-интерфейса (`QueueAdapter`, `CacheStore`, `PubsubAdapter`,
+`DeliveryAdapter`), `include` вместо наследования от фреймворк-класса;
+один shared-спек контракта порта прогоняют все адаптеры (по образцу
+оракулов). Существующие `abstract class Store`/`Base` остаются как
+1:1-Rails-API, включая модуль-порт внутри.
 - [ ] ActiveJob-очередь на PG + recurring jobs (cron в очереди)
 - [ ] кэш-сторы: memory/file/PG/Redis
 - [ ] Cable pubsub: PG LISTEN/NOTIFY + Redis-адаптер
@@ -104,9 +110,15 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 
 ## Фаза 3 — дифференциаторы (после продакшен-релиза)
 
-- [ ] **Iteration 8** — live_view.cr (stateful fiber, DOM-морфинг,
-      handle_event/handle_info) + PWA-генерация (manifest, service
-      worker, Web Push VAPID)
+- [~] **Iteration 8** — live_view.cr P0 готов: серверная часть Phoenix
+      LiveView 1.2.12 (stateful fiber, Channels V2 wire-протокол,
+      statics/dynamics-диффы, handle_event/handle_info) + официальный
+      JS-клиент vendored немодифицированным. Оракул с настоящего
+      Phoenix (oracle/app, транскрипт 11 кейсов, зеркало 8/8 спеков),
+      headless-Chromium E2E (join→mount→click→diff→DOM), бенч
+      `results/400-liveview.md` (~52–61k ev/s vs Phoenix 39–88k,
+      RSS 14 MB vs 129 MB). PWA-генерация и live_component/uploads —
+      отдельным заходом (см. live_view.cr/PLAN.md)
 - [ ] **Iteration 9** — streaming-first: SSE/chunked из блока/джобы,
       backpressure, отмена fiber'а при disconnect
 - [ ] **Iteration 10** — type-safe params + OpenAPI compile-time codegen
@@ -114,6 +126,35 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
       `crails watch` (rebuild + zero-downtime), error pages
 - [ ] **Iteration 14** — active_backup.cr: бэкапы БД/файлов, сторы,
       retention через recurring jobs, restore-тест в CI
+
+## Backlog идей — Clean Rails / дядя Боб (вклеивать по мере итераций)
+
+Идеи Роберта Мартина, принятые как направление. Конкретика внедрения
+решается в соответствующих итерациях, здесь — чтобы не потерялось.
+
+1. **Screaming Architecture**: опция `crails new --layout=domain` —
+   фичевые каталоги (`app/notes/`, `app/billing/`: model + controller +
+   views внутри фичи) вместо техслоёв; классический layout — дефолт.
+2. **Пакетные принципы (ADP/SDP)**: CI-проверка, что граф зависимостей
+   шардов (по shard.yml) ацикличен — механика для README-обещания №9;
+   правило: меняемся только в сторону стабильных шардов (всё зависит
+   от active_support, а не наоборот).
+3. **ISP — узкие порты**: module-интерфейсы Iteration 7 держим
+   маленькими (QueueAdapter = enqueue + enqueue_at, не god-порт);
+   опциональные способности — отдельными интерфейсами
+   (`RecurringAdapter` включает `QueueAdapter`, проверка
+   `adapter.is_a?(RecurringAdapter)`), никогда не сужаем старый контракт.
+4. **Развилка recurring jobs**: дефолт — встроенный шедулер-супервизор
+   поверх `QueueAdapter#enqueue_at` (работает с любым адаптером,
+   встраивается в роль `crails scheduler`, Iteration 15); оптимизация —
+   нативный recurring в PG-адаптере через `RecurringAdapter`.
+5. **Тест-пирамида**: к интеграционным оракулам добавить слой быстрых
+   юнит-спеков без IO для чистой логики (образцы: `Diff.compute`,
+   `LiveView::Token`) — правило «чистая логика тестируется без сокетов».
+6. **LSP/OCP через оракулы**: каждая новая фича рождается с оракулом до
+   кода (AGENTS.md) — оракульные спеки и есть механическая проверка
+   подстановки реализаций; расширение контракта = новый контракт рядом,
+   старый не трогаем.
 
 ## Definition of Done (продакшен)
 
