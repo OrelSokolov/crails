@@ -78,6 +78,36 @@ Zeitwerk/autoload (`zeitwerk:check`), `to_prepare`-семантика,
 `crails new blog && cd blog && crails server` поднимает приложение
 с нуля без ручных правок файлов.
 
+## Статус
+
+### Iteration 11 — observability + deploy ✅ (2026-10-03)
+Oracle-first: `oracle/observability_cases.rb` — 20 кейсов с Rails 8.1.4
+production (GET /up HTML/JSON, X-Request-Id UUID v4 + passthrough, 404,
+строки Started/Processing/Completed) → `oracle/observability_expected.yml`;
+зеркало `spec/observability_spec.cr` — 23/23.
+
+- `src/observability.cr`: request-id, health (`/up`, `/up.json` до
+  роутинга), Prometheus `/metrics` (text 0.0.4: requests_total
+  {method,status}, duration histogram, rss), лог-строки Rails-формата +
+  JSON-режим (`config.log_json`: production-дефолт, `CRAILS_LOG_JSON=1`)
+- `src/otel.cr`: zero-config OTLP/JSON-трейсы
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`/`..._HTTP` + `OTEL_SERVICE_NAME`);
+  нет env → nil-check
+- `Application#call`: X-Request-Id/X-Runtime, текст Started/Processing/
+  Completed с тегом `[request_id]` или одна JSON-строка, 404 как HTML
+- `Application#serve`: graceful shutdown (SIGINT/TERM → server.close →
+  drain → exit 0), `CRAILS_REUSE_PORT=1` для zero-downtime, pidfile
+  `tmp/pids/app.pid`
+- `crails deploy user@host[:dir]`: release-сборка → scp → `db:migrate` →
+  рестарт рядом + TERM старому (см. `src/deploy.cr`)
+
+Отклонения от оракула (футер spec/observability_spec.cr):
+`CRails::HealthController` vs `Rails::`; Completed без `(Views/AR/GC)`;
+`/up` без ETag/Cache-Control. JSON-лог + `/metrics` — расширения CRails.
+
+Bench: `bench/results/500-observability.md` — текст-лог в шуме baseline
+(83.7k → 91.0k RPS), JSON −3.8%, RSS +0–80 KB.
+
 ## Зависимости
 
 все шарды; CLI — отдельный shard `railties` с бинарником `crails`.

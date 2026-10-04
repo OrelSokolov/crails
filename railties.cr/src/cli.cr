@@ -10,6 +10,13 @@ module CRails
       when "routes"    then Build.ensure_app; Build.build; run_app(["routes"])
       when "watch"     then Watch.run(argv[1..])
       when "db", .starts_with?("db:") then DB.run(argv)
+      when "deploy"    then Deploy.run(argv[1..])
+      when "generate", "g"
+        case argv[1]?
+        when "bot" then Agent.generate(argv[2..])
+        else abort "Usage: crails generate bot NAME [--platform=telegram|whatsapp]"
+        end
+      when "bot:poll" then Agent.poll(argv[1..])
       when "version", "--version", "-v" then puts "CRails #{CRails::VERSION} (Crystal #{Crystal::VERSION})"
       when "about"     then about
       else help
@@ -40,7 +47,13 @@ module CRails
         watch          Rebuild + restart on source changes (dev loop)
         db:migrate     Run pending migrations (db/migrate/*.cr)
         db:rollback    Roll back the last migration (STEP=n)
-        db:schema:dump Refresh db/schema.yml
+        db:schema:dump Refresh db/schema.cr + db/schema.yml
+        db:schema:load Recreate the database from db/schema.cr
+        generate bot   Embed a bot into this app: app/bots/ + webhook mount
+                       (crails generate bot Support --platform=telegram|whatsapp)
+        bot:poll     Build the app and run its bot poller role
+                       (crails bot:poll telegram)
+        deploy         Release-build + scp + migrate + zero-downtime restart
         version        Print versions
         about          Print framework info
       TEXT
@@ -57,3 +70,5 @@ require "./server"
 require "./watch"
 require "./console_cmd"
 require "./db_tasks"
+require "./deploy"
+require "./agent_tasks"

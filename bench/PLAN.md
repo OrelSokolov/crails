@@ -49,6 +49,12 @@ ActionCable-совместимый канал, broadcast каждые N мс.
 нагрузки (80/15/5 read/write/ws), время до деградации p99 > 500ms,
 ошибки, RSS.
 
+### 410-serverx — done, `results/410-serverx.md`, код вынесен в `~/serverX.cr`
+Ядро сервера: nginx-модель (буфер на соединение, offset-парсер, zero
+per-request аллокаций, master/worker SO_REUSEPORT) против stdlib
+`HTTP::Server` — пола для всех Crystal-фреймворков. Метрики: RPS,
+p99, RSS, байты GC на запрос. Итог: +15–50% RPS, 691 → 2–9 байт/запрос.
+
 ## Отчёты
 
 `results/NNN-<name>.md`: окружение (CPU/RAM/ядро/версии), таблицы,

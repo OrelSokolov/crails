@@ -59,6 +59,37 @@ skip-locked — кандидат №1 для монолита), Redis-очере
 - P2: test-helpers (`assert_enqueued_with`, perform_enqueued_jobs),
   Redis-адаптер, enqueue_after_transaction_commit.
 
+## Статус (Iteration 7 — PG-очередь + recurring + Redis-очередь)
+
+- `src/solid_queue.cr` — `ActiveJob::SolidQueue::Adapter`: durable
+  PG-очередь поверх порта `Adapter` (одноимённого модуля). Таблица
+  `solid_queue_jobs` + claimed_at/finished_at; клейм —
+  `FOR UPDATE SKIP LOCKED`, порядок priority DESC (выше число — раньше,
+  снято с реального solid_queue), FIFO по id; scheduled-джобы невидимы
+  до scheduled_at; retry — на уровне ActiveJob (новая строка);
+  stale-claim reclaim (`release_stale_claims`, дефолт 1 ч).
+- Recurring: `src/cron.cr` (`ActiveJob::Cron`, семантика fugit —
+  next_time строго после, previous_time не позже, DOM/DOW-union,
+  `@daily`-алиасы) + `SolidQueue::RecurringTask` (key/class/schedule/
+  queue/priority/args), дедуп `(task_key, run_at)` частичным уникальным
+  индексом; `Adapter#schedule_recurring` — тик шедулера.
+- `src/adapters/redis_queue.cr` — `RedisQueueAdapter`: LIST на очередь
+  (LPUSH/RPOP), ZSET для scheduled, recurring-дедуп SET NX; эфемерный
+  (без истории, без приоритетов внутри очереди — зафиксировано).
+- `retry_on` теперь принимает `wait:` (дефолт 3.seconds, как Rails);
+  `Base.find_job_class` — lookup класса в compile-time registry.
+- Оракул: `oracle/solid_queue_cases.rb` → `solid_queue_expected.yml`
+  (15 кейсов), снят с настоящего solid_queue 1.2.4 + fugit 1.12.1
+  (standalone-загрузка гема через Zeitwerk); vendor-схема в
+  `oracle/vendor/`. Зеркало `spec/solid_queue_spec.cr` (те же ID,
+  без правок) + юнит-кроны за пределами оракульной строки.
+  `spec/redis_queue_spec.cr` — контракт Redis-очереди. Сюит 56/56.
+- Задокументированные отклонения от solid_queue: одна таблица вместо
+  ready/claimed/scheduled-сплита; нет concurrency controls / пауз /
+  process heartbeats (P2); recurring-строка получает scheduled_at=now
+  (шедулер энкьюит в момент наступления, run_at хранит вхождение).
+- Бенч: `bench/crails_solidqueue` → `bench/results/201-solid-queue.md`.
+
 ## Готово, когда
 
 джоба с `retry_on` ретраится с backoff после падения, аргумент-модель

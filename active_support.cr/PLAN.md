@@ -46,6 +46,9 @@
 - `ActiveSupport::Notifications`: `instrument/subscribe/publish`
 - `ActiveSupport::Cache`: `MemoryStore, NullStore, FileStore`;
   `fetch(read/write/exist?/delete, expires_in:, race_condition_ttl:)`
+- Cache-адаптеры Iteration 7 (за портом `CacheStore`, см. статус):
+  `RedisCacheStore` (redis), `SolidCacheStore` (PG-таблица — аналог
+  solid_cache 1.0.x); оба — опциональные require `adapters/*`
 - I18n: `t(key, scope:, default:, count:)`, yml-локали, плюрализация,
   `l` (localize), `available_locales`, fallbacks
 - `NumberHelper`: `number_to_currency/delimited/human_size/human/
@@ -75,6 +78,26 @@
   TaggedLogging, BacktraceCleaner.
 - P2: TimeZone/TimeWithZone полный, Deprecation, глубокие хэш-операции.
 
+## Статус (Iteration 7 — сетевые кэш-сторы)
+
+- Порт `CacheStore` (`module CacheStore`: lookup/store/remove/clear)
+  включён в `abstract class Store` — 1:1 Rails-API остался на Store,
+  адаптеры пишутся против порта.
+- `src/adapters/redis_cache.cr` — `RedisCacheStore` (jgaskins/redis:
+  SET/GET с EX, INCRBY-счётчики, namespace, FLUSHDB).
+- `src/adapters/pg_cache.cr` — `SolidCacheStore`: таблица
+  `solid_cache_entries(key, value, expires_at)` + атомарные SQL-счётчики
+  + `delete_expired` (аналог прунинга solid_cache).
+- Оракул: `oracle/cache_stores_cases.rb` → `cache_stores_expected.yml`,
+  снят с настоящей ActiveSupport 8.1.4 RedisCacheStore + redis-server
+  (10 кейсов). Зеркало `spec/cache_stores_spec.cr` + общий контракт
+  порта `spec/cache_store_contract.cr` гоняют все 4 стора
+  (memory/file/pg/redis). 43 кейса кэша, сюит 269/269.
+- Задокументированное отклонение: Rails RedisCacheStore оборачивает
+  значения кодером, поэтому INCR по `write`-записи даёт nil; наши сторы
+  хранят сырые строки и считают integer-parsable записи (10 → 11).
+- FileStore: формат времени с суб-секундной точностью (экспирация < 1с).
+
 ## Готово, когда
 
 `2.days.ago`, `%w[a b].to_sentence`, `"post".pluralize`,
@@ -83,4 +106,5 @@
 
 ## Зависимости
 
-stdlib (YAML, JSON, OpenSSL, Crypto), crystal-redis (P2, кэш-стор).
+stdlib (YAML, JSON, OpenSSL, Crypto); pg + redis (только опциональные
+require `adapters/*`, Iteration 7).

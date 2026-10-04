@@ -1,0 +1,1 @@
+{"model":"gpt-4o","messages":[{"role":"system","content":"Ты агроном. Определи болезнь по фото."},{"role":"user","content":[{"type":"text","text":"Что с листьями?"},{"type":"image_url","image_url":{"url":"https://example.com/leaf.jpg"}}]}]}

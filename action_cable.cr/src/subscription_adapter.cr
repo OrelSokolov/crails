@@ -7,7 +7,14 @@
 
 module ActionCable
   module SubscriptionAdapter
+    # Hexagonal port (Iteration 7): the narrow pubsub seam. The 1:1
+    # Rails API stays on Base (broadcast/subscribe/unsubscribe/shutdown),
+    # which includes this port; PG/Redis adapters implement it.
+    module PubsubAdapter
+    end
+
     class Base
+      include PubsubAdapter
       def broadcast(channel : String, payload : String) : Nil
       end
 

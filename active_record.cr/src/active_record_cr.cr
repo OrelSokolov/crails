@@ -13,6 +13,7 @@ require "./validations"
 require "./associations"
 require "./persistence"
 require "./migrations"
+require "./schema"
 require "./schema_dumper"
 
 module ActiveRecord

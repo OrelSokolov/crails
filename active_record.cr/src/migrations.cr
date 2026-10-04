@@ -77,12 +77,15 @@ module ActiveRecord
       getter columns = [] of Column
       getter indexes = [] of Index
       getter foreign_keys = [] of ForeignKey
+      getter check_constraints = [] of CheckConstraint
 
       struct Column
         getter name, sql_type, default, null
 
+        # Int32/Float32 widen the Value union so that schema.cr literals
+        # dumped from the database (`default: 5`) compile without _i64 suffixes.
         def initialize(@name : String, @sql_type : String,
-                       @default : ::ActiveRecord::Value? = nil, @null : Bool = true)
+                       @default : ::ActiveRecord::Value | Int32 | Float32 = nil, @null : Bool = true)
         end
 
         def to_sql : String
@@ -116,6 +119,13 @@ module ActiveRecord
         getter column, to_table, name
 
         def initialize(@column : String, @to_table : String, @name : String)
+        end
+      end
+
+      struct CheckConstraint
+        getter expression, name
+
+        def initialize(@expression : String, @name : String)
         end
       end
 
@@ -163,6 +173,13 @@ module ActiveRecord
         add_index(cols, unique, name, where)
       end
 
+      # t.check_constraint "views >= 0", name: "posts_views_check" — applied
+      # via ALTER TABLE after the table (and its indexes) exist, like Rails.
+      def check_constraint(expression : String, name : String? = nil) : Nil
+        cname = name || "chk_#{Digest::SHA256.hexdigest(expression)[0, 10]}"
+        check_constraints << CheckConstraint.new(expression, cname)
+      end
+
       # table name is set by create_table before yielding the block
       def name : String
         @table_name
@@ -178,7 +195,8 @@ module ActiveRecord
 
     # --- schema statements ------------------------------------------------
     def create_table(name : Symbol | String, primary_key : Symbol | String = "id",
-                     id : Bool = true, &block : TableDefinition ->) : Nil
+                     id : Bool = true, force : Symbol | String? = nil,
+                     &block : TableDefinition ->) : Nil
       table = name.to_s
       if recording?
         td = TableDefinition.build(table)
@@ -188,6 +206,10 @@ module ActiveRecord
       end
       td = TableDefinition.build(table)
       block.call(td)
+      if force # schema.cr dumps carry force: :cascade for Rails-1:1 reloads
+        cascade = force.to_s == "cascade" ? " CASCADE" : " RESTRICT"
+        Base.connection.exec(%(DROP TABLE IF EXISTS "#{table}"#{cascade}))
+      end
       cols = String.build do |s|
         if id
           s << %("#{primary_key}" bigserial PRIMARY KEY)
@@ -208,6 +230,10 @@ module ActiveRecord
       td.foreign_keys.each do |fk|
         Base.connection.exec(
           %(ALTER TABLE "#{table}" ADD CONSTRAINT "#{fk.name}" FOREIGN KEY ("#{fk.column}") REFERENCES "#{fk.to_table}" ("id")))
+      end
+      td.check_constraints.each do |cc|
+        Base.connection.exec(
+          %(ALTER TABLE "#{table}" ADD CONSTRAINT "#{cc.name}" CHECK (#{cc.expression})))
       end
     end
 
@@ -326,6 +352,13 @@ module ActiveRecord
 
     def remove_check_constraint(table : Symbol | String, name : Symbol | String) : Nil
       Base.connection.exec(%(ALTER TABLE "#{table}" DROP CONSTRAINT IF EXISTS "#{name}"))
+    end
+
+    # enable_extension "pg_catalog.plpgsql" — schema.cr dumps lead with the
+    # installed extensions, like Rails. Idempotent.
+    def enable_extension(name : String) : Nil
+      ext = name.includes?('.') ? name.split('.', 2)[1] : name
+      Base.connection.exec(%(CREATE EXTENSION IF NOT EXISTS "#{ext}"))
     end
 
     def add_column(table : Symbol | String, name : Symbol | String,

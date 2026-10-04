@@ -12,7 +12,19 @@ shards:
     path: ../active_support.cr
     version: 0.1.0
 
+  db:
+    git: https://github.com/crystal-lang/crystal-db.git
+    version: 0.14.0
+
   icr:
     git: https://github.com/orelsokolov/icr.cr.git
     version: 1.2.0+git.commit.6121e34da57ba946ea0feaacb52d005972e6cae5
+
+  pg:
+    git: https://github.com/will/crystal-pg.git
+    version: 0.30.0
+
+  redis:
+    git: https://github.com/jgaskins/redis.git
+    version: 0.16.0
 

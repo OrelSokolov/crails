@@ -44,6 +44,8 @@ IrreversibleMigration 1:1; `through`/polymorphic-ассоциации — P2.
 - [x] валидации, коллбэки
 - [x] ассоциации: belongs_to/has_many/has_one (+dependent)
 - [x] миграции DSL + `crails db:migrate/rollback/schema:dump` (schema.yml)
+- [x] `db/schema.cr` — аналог schema.rb: дамп 1:1 с оракулом 8.1.4
+      (байт-в-байт) + `crails db:schema:load` round-trip (2026-10-03)
 - [x] bench `100-ar-read` / `101-ar-crud` vs Rails
 
 ### Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур) ✅ (2026-10-02)
@@ -79,27 +81,71 @@ cookie-store без подписи; CSRF-слоя нет; newline-семанти
 
 ## Фаза 2 — продакшен-готовность (порядок: 7 → 11 → 12 → 15)
 
-### Iteration 7 — очереди/кэш/pubsub: PG по умолчанию, Redis — опция
+### Iteration 7 — очереди/кэш/pubsub: PG по умолчанию, Redis — опция ✅ (2026-10-03)
 Гексагональный pass: каждый новый адаптер пишется против явного порта —
-module-интерфейса (`QueueAdapter`, `CacheStore`, `PubsubAdapter`,
-`DeliveryAdapter`), `include` вместо наследования от фреймворк-класса;
-один shared-спек контракта порта прогоняют все адаптеры (по образцу
-оракулов). Существующие `abstract class Store`/`Base` остаются как
-1:1-Rails-API, включая модуль-порт внутри.
-- [ ] ActiveJob-очередь на PG + recurring jobs (cron в очереди)
-- [ ] кэш-сторы: memory/file/PG/Redis
-- [ ] Cable pubsub: PG LISTEN/NOTIFY + Redis-адаптер
-- [ ] bench: джобы/сек PG vs Redis vs Sidekiq; pubsub msg/сек
+module-интерфейса (`ActiveJob::Adapter`, `ActiveSupport::Cache::CacheStore`,
+`ActionCable::SubscriptionAdapter::PubsubAdapter`), `include` вместо
+наследования; общие контракт-спеки порта прогоняют все адаптеры.
+Существующие `abstract class Store`/`Base` остаются как 1:1-Rails-API,
+включая модуль-порт внутри.
+- [x] ActiveJob-очередь на PG + recurring jobs (cron в очереди):
+      `ActiveJob::SolidQueue::Adapter` (skip-locked, priority DESC+FIFO,
+      scheduled-гейтинг, stale-claim reclaim) + `ActiveJob::Cron`
+      (семантика fugit) + `RecurringTask` с дедупом (task_key, run_at);
+      оракул 15 кейсов с настоящего solid_queue 1.2.4 + fugit 1.12.1,
+      зеркало 1:1 + юнит-кроны; Redis-очередь (list+zset, контракт-спек)
+- [x] кэш-сторы: memory/file/PG/Redis — порт `CacheStore`, оракул с
+      настоящей RedisCacheStore (AS 8.1.4), один контракт-спек на все
+      четыре стора (269/269 сюита active_support)
+- [x] Cable pubsub: PG LISTEN/NOTIFY + Redis-адаптер — порт
+      `PubsubAdapter`, оракул с настоящего ActionCable 8.1.4 Redis
+      (одни кейсы для обоих адаптеров, 25/25 сюита action_cable)
+- [x] bench: `results/201-solid-queue.md` (PG durable ~480 enq/s /
+      1.8k drain/s; Redis ~41k jobs/s vs Sidekiq 1.4k),
+      `results/202-pubsub.md` (PG 35k broadcast/s, Redis 109k; доставки
+      339k / 982k в секунду)
 
-### Iteration 11 — observability + deploy
-- [ ] JSON-логи с request_id, `/healthz` + `/metrics` (Prometheus)
-- [ ] OTel-трейсы через `Notifications` (zero-config)
-- [ ] graceful shutdown, zero-downtime restart (передача socket'а)
-- [ ] `crails deploy` = scp бинаря + миграции
+### Iteration 11 — observability + deploy ✅ (2026-10-03)
+Oracle-first по AGENTS.md: `railties.cr/oracle/observability_cases.rb`
+(20 кейсов с настоящего Rails 8.1.4 production: `Rails::HealthController`
+/up + /up.json, X-Request-Id UUID v4 + passthrough, 404-страница, строки
+Started/Processing/Completed) → `observability_expected.yml`; зеркало
+`railties.cr/spec/observability_spec.cr` — 23/23. Отклонения (в футере
+спека): `CRails::HealthController` vs `Rails::`, Completed без скобки
+Views/AR/GC, /up без ETag/Cache-Control; JSON-лог и /metrics — расширения
+(Rails 8 не шипает их из коробки; `ActiveSupport::LoggerJsonFormatter`
+не существует).
+- [x] JSON-логи с request_id (`config.log_json`, production-дефолт,
+      `CRAILS_LOG_JSON=1`), текстовый лог в формате Rails 8 с тегом
+      `[request_id]`; X-Request-Id/X-Runtime на каждый ответ
+- [x] `/up` + `/up.json` (семантика Rails health, до роутинга) +
+      `/metrics` Prometheus (counter + histogram + rss, формат 0.0.4)
+- [x] OTel-трейсы zero-config (`src/otel.cr`): OTLP/JSON POST на
+      `{OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`, server-span на запрос;
+      нет env — nil-check на горячем пути
+- [x] graceful shutdown (SIGINT/TERM → drain → exit 0, pidfile
+      tmp/pids/app.pid) + zero-downtime через `CRAILS_REUSE_PORT=1`
+- [x] `crails deploy user@host[:dir]`: release-сборка → scp →
+      db:migrate → рестарт рядом + TERM старому (smoke-проверено на
+      localhost; end-to-end по ssh — при появлении реального хоста)
+- [x] bench `results/500-observability.md`: оверхед текст-лога в шуме
+      (83.7k → 91.0k RPS), JSON-лог −3.8% (80.5k), RSS +0–80 KB
 
 ### Iteration 12 — гигиена безопасности
-- [ ] secure-by-default cookies/headers, CSP nonce
-- [ ] rate limiting, sandboxed миграции
+- [~] rate limiting (2026-10-03): `rate_limit to:, within:` в action_pack
+      (оракул `action_pack.cr/oracle/rate_limit_expected.yml` — 18 кейсов
+      с actionpack 8.1.4: 429, бакеты по ip/`by:`, `with:`-обработчик,
+      `name:`/`scope:`, `only:`, фиксированное окно, NullStore отключает;
+      зеркало `railties.cr/spec/rate_limit_spec.cr` 17/17 поверх
+      ActiveSupport::Cache-портов; по пути чинены Cache#increment —
+      окно от первого запроса, добавлен NullStore — и
+      Notifications.instrument — публикация события при исключении,
+      как в Rails). Отклонения: `by:`/`with:` — Symbol-имя метода
+      (нет instance_exec), в payload request — path, within — String
+- [ ] secure-by-default cookies/headers, CSP nonce (сначала
+      middleware-стек `config.middleware` поверх HTTP::Handler — его
+      в коде ещё нет, только заявка в PLAN)
+- [ ] sandboxed миграции
 - [ ] `crails check` (пассивный анализ в духе Brakeman)
 
 ### Iteration 15 — supervision (доступность без BEAM)
@@ -119,6 +165,60 @@ module-интерфейса (`QueueAdapter`, `CacheStore`, `PubsubAdapter`,
       `results/400-liveview.md` (~52–61k ev/s vs Phoenix 39–88k,
       RSS 14 MB vs 129 MB). PWA-генерация и live_component/uploads —
       отдельным заходом (см. live_view.cr/PLAN.md)
+- [~] **Iteration 16** — action_bot.cr P0 готов (2026-10-04): боты
+      из коробки, единый контракт сообщений (DeliveryAdapter /
+      StreamingDelivery / IngressAdapter / WebhookVerification —
+      module-порты Iteration 7). Oracle 39 кейсов: фикстуры Telegram
+      валидируются настоящим telegram-bot-ruby 2.8.1 (oracle/vendor),
+      WhatsApp — схема Cloud API; исходящие пейлоады байт-в-байт с
+      документацией API. 19/19 спеков (оракул + фейк-API-серверы:
+      sendMessage/editMessageText-стриминг, HMAC-verify, hub.challenge,
+      getUpdates-поллер, SSE). Встраивание в приложение:
+      `crails generate bot` (app/bots/ + монтирование /bot/webhooks +
+      /bot/sse + config/bots.yml), `crails bot:poll`; E2E-смоук
+      crails new → generate → webhook 403/200/404 + доставка ответа
+      ботом. Задел на эпоху ИИ: reply.stream — единый конвейер
+      чанки→платформа(edits)/веб(SSE), к которому будущий отдельный
+      шард ActiveAgent (агентский цикл + Tool + LLM-провайдеры)
+      подключится без изменения бот-контракта; имя ActiveAgent
+      для него оставлено сознательно.
+      Осталось: bench 600-bots, P1 deliver_later/conversations/Slack
+- [~] **Iteration 17** — active_agent.cr (ИИ-агенты; не порт гема —
+      интерфейс с нуля по исследованию: Anthropic Building Effective
+      Agents, OpenAI Agents SDK, LangGraph, pydantic-ai, ruby
+      active_agent): агент = цикл LLM+инструменты, module-порты
+      `Provider` (LLM-провайдеры — аналог QueueAdapter; термин
+      индустриальный, Brain отброшен), `Tool` (compile-time JSON
+      Schema — typed input, описание обязательно, ACI), `Memory`
+      (P1). Мультимодальность (content-parts: текст+изображения) —
+      в P0-контракте. Run/Step — каждый шаг видим и в аудите;
+      max_steps обязателен; стрим — `Proc(String, Nil)`-эмиттер,
+      мост к ActionBot reply.stream без зависимости шардов.
+      Oracle: wire-фикстуры провайдеров (байт-в-байт пейлоады) +
+      цикл на Providers::Test без сети. P2: interrupt/resume (HITL
+      на solid_queue), handoffs.
+      **P0 готов (2026-10-04)**: контракты + цикл + Providers::Test +
+      OpenAICompatible-движок (wire-оракул 6 кейсов байт-в-байт:
+      tools/tool_calls/мультимодал/SSE-чанки; полный HTTP-флоу
+      против фейк-сервера) + провайдеры openai/zai/kimi/deepseek/
+      lmstudio/vllm/ollama (свои ENV/эндпоинты/модели поверх
+      общего wire), ProviderError (статус+тело API), compile-time
+      диспетчер тулзов, 21/21 спеков. Live-смоук ZAI: wire до
+      api.z.ai доходит, авторизация ок — на аккаунте нет баланса
+      (429), спек скипается до пополнения. Осталось:
+      Anthropic-провайдер, мосты (эмиттер→ActionBot/SSE, ask_later),
+      P1/P2.
+- [ ] **Iteration 18** — action_mcp.cr: приложение становится
+      MCP-сервером (Streamable HTTP `/mcp`, JSON-RPC 2.0:
+      initialize/tools list/call) — экспонирует те же
+      `ActiveAgent::Tool` наружу. Монетизация по ключам: API/service
+      токены (JWT-ротация, Iteration 6) + квоты (rate limiting,
+      Iteration 12) + учёт вызовов → биллинг recurring-джобой; скоупы
+      read/write на ключ, аудит каждого tools/call. Бонус: агент как
+      MCP-инструмент (продажа доступа к AI-оператору). MCP-клиент
+      (consuming, `McpToolSource`) остаётся в active_agent P2 —
+      exposing и consuming в разных шардах, общий знаменатель —
+      контракт Tool.
 - [ ] **Iteration 9** — streaming-first: SSE/chunked из блока/джобы,
       backpressure, отмена fiber'а при disconnect
 - [ ] **Iteration 10** — type-safe params + OpenAPI compile-time codegen

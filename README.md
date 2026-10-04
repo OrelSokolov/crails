@@ -453,19 +453,23 @@ convention over configuration — всё это сохраняется. API 1:1 
 | Папка | Порт | Статус |
 |---|---|---|
 | `active_support.cr/` | ActiveSupport | **Iteration 1 ✅** core_ext P0 + Duration + дата-математика + Concern/delegate/Notifications + Cache + I18n + NumberHelper (226 спеков, оракул 1:1 с гемом 8.1.4) |
-| `active_record.cr/` | ActiveRecord | **Iteration 2 ✅** CRUD-запись + dirty + валидации + коллбэки + ассоциации + миграции + `crails db:*` (108 спеков; оракулы 1:1 с гемом 8.1.4: 78 кейсов записи + дампы схемы миграций) |
-| `action_pack.cr/` | ActionPack (контроллеры, роутинг, params) | Iteration 0 slice (роутер, Base, render+layout) |
-| `action_view.cr/` | ActionView (хэлперы, ECR, форм-билдер) | Iteration 0 slice (h/html_escape) |
-| `action_mailer.cr/` | ActionMailer | план |
-| `action_mailbox.cr/` | ActionMailbox | план |
-| `action_text.cr/` | ActionText | план |
-| `action_cable.cr/` | ActionCable | план |
-| `active_job.cr/` | ActiveJob | план |
-| `active_storage.cr/` | ActiveStorage | план |
-| `railties.cr/` | Railties + CLI `crails` | Iteration 0 + console (icr.cr) |
-| `devise.cr/` | Devise (порт гема) | план |
+| `active_record.cr/` | ActiveRecord | **Iteration 2 ✅** CRUD-запись + dirty + валидации + коллбэки + ассоциации + миграции + `crails db:*` + `db/schema.cr` (дамп 1:1 с schema.rb-оракулом, `schema:load` round-trip) (249 спеков; оракулы 1:1 с гемом 8.1.4: 78 кейсов записи + дампы схемы миграций) |
+| `action_pack.cr/` | ActionPack (контроллеры, роутинг, params) | **Iteration 3 ✅** strong params, cookies/session/flash, `rescue_from`, `respond_to` |
+| `action_view.cr/` | ActionView (хэлперы, ECR, форм-билдер) | **Iteration 3 ✅** layouts/partials/collection-render, хелперы, output-safety, FormBuilder |
+| `action_mailer.cr/` | ActionMailer | P0 ✅ (deliver_later, SMTP-диалог; P1: .with/observers/previews) |
+| `action_mailbox.cr/` | ActionMailbox | P0 ✅ (InboundEmail, Router, lifecycle; P1: ingress/incinerate) |
+| `action_text.cr/` | ActionText | P0 ✅ (RichText, sanitize, trix-layout; P1: аттачменты/sgid) |
+| `action_cable.cr/` | ActionCable | **Iteration 4 ✅** channels/стримы/протокол, ws-слой /cable |
+| `active_job.cr/` | ActiveJob | **Iteration 4 ✅** perform_later/now, retry/discard, адаптеры |
+| `action_bot.cr/` | ActionBot (боты/агенты — не порт, дифференциатор) | **Iteration 16 P0 ✅** единый контракт сообщений + Telegram/WhatsApp адаптеры, вебхуки/поллер/SSE-стриминг, `crails generate bot` (оракул с telegram-bot-ruby 2.8.1; P1: conversations/Slack, P2: Brain-LLM) |
+| `active_storage.cr/` | ActiveStorage | P0 ✅ (Disk-сервис, Blob/Attachment, purge; P1: variants/S3/Mirror) |
+| `railties.cr/` | Railties + CLI `crails` | Iteration 0 + console (icr.cr) + `db:migrate/rollback/schema:dump/schema:load` |
+| `devise.cr/` | Devise (порт гема) | P0 ✅ (26/26 оракул + JWT-ротация; P1: recoverable/confirmable) |
+| `live_view.cr/` | Phoenix LiveView (серверная часть) | Iteration 8 P0 ✅ (диффы, handle_event; P1: live_component/uploads) |
 | `hello_world/` | первая итерация — Hello World на CRails | ✅ работает |
-| `bench/` | сценарии замеров монолита | 000-hello снят |
+| `rails_hello/` | интеграционное приложение полного стека | ✅ HTTP-оракул 9/9 против Rails 8.1.4 |
+| `demo/` | демо-приложение (CRails Notes) | ✅ работает |
+| `bench/` | сценарии замеров монолита | 000/100/101/200/300/400/410 сняты |
 | `assets/` | иконка: сине-голубой алмаз Crystal | есть |
 
 Имена шардов в `shard.yml` — без `.cr` (`active_record`, `action_pack`, …);
@@ -488,8 +492,10 @@ rake spec       # все тест-сьюты шардов
 RSS 16 MB против 110 MB). Приложение: `hello_world/hello/` (сгенерировано
 `crails new`, пересоздаётся с нуля за ~2 s компиляции).
 
-Дальше — `PLAN.md` в корне: Iterations 0–2 ✅ закрыты (2026-10-02),
-теперь Iteration 3 — action_view.cr + action_pack.cr (полный MVC-контур).
+Дальше — `PLAN.md` в корне: Фаза 1 (порт ядра) закрыта по P0 —
+Iterations 0–6 и live_view (Iteration 8) с оракулами и бенчами; теперь
+Фаза 2 — продакшен-готовность (Iteration 7: PG-очереди/кэш/pubsub →
+observability → безопасность → supervision).
 
 ## License
 

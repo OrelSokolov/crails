@@ -16,6 +16,8 @@ SHARDS = %w[
   action_view.cr
   action_pack.cr
   active_record.cr
+  active_agent.cr
+  action_bot.cr
   railties.cr
 ]
 

@@ -6,6 +6,7 @@ require "./serialization"
 require "./test_adapter"
 require "./async_adapter"
 require "./base"
+require "./cron"
 
 module ActiveJob
   VERSION = "0.1.0"

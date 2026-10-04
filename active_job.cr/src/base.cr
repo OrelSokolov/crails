@@ -71,9 +71,9 @@ module ActiveJob
       end
     end
 
-    macro retry_on(klass, attempts = 3)
-      def self.__retry_rule : Tuple(Exception.class, Int32)?
-        { {{ klass }}, {{ attempts }} }
+    macro retry_on(klass, attempts = 3, wait = 3.seconds)
+      def self.__retry_rule : Tuple(Exception.class, Int32, Time::Span)?
+        { {{ klass }}, {{ attempts }}, {{ wait }} }
       end
     end
 
@@ -132,7 +132,7 @@ module ActiveJob
       nil
     end
 
-    def self.__retry_rule : Tuple(Exception.class, Int32)?
+    def self.__retry_rule : Tuple(Exception.class, Int32, Time::Span)?
       nil
     end
 
@@ -199,13 +199,13 @@ module ActiveJob
     private def __handle_failure(ex : Exception)
       return ex if self.class.__discard_classes.any?(&.== ex.class)
       if rule = self.class.__retry_rule
-        klass, attempts = rule
+        klass, attempts, wait = rule
         if ex.class == klass
           key = "[#{ex.class.name}]"
           exception_executions[key] = (exception_executions[key]? || 0) + 1
           raise ex if executions >= attempts
           # schedule the retry (default wait mirrors Rails' 3s default)
-          __enqueue(Time.utc + 3.seconds)
+          __enqueue(Time.utc + wait)
           return ex
         end
       end
@@ -269,6 +269,15 @@ module ActiveJob
           job = {{ j.id }}.new({% for i in 0...k %}args[{{ i }}], {% end %}) if name == {{ j.stringify }} && args.size == {{ k }}
         {% end %}
       {% end %}
+    end
+
+    # Job-class lookup by name (compile-time registry) — used by
+    # recurring tasks and anything resolving class_name strings.
+    def self.find_job_class(name : String) : Base.class | Nil
+      {% for j in ::ActiveJob::JOBS %}
+        return {{ j.id }} if name == {{ j.stringify }}
+      {% end %}
+      nil
     end
 
     def self.deserialize(h : Hash(String, ArgValue)) : Base

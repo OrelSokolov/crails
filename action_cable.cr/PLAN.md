@@ -54,6 +54,27 @@ worker_pool_size (fiber-пул), logger, log_tags.
 - Remote disconnect: внутренние per-connection каналы, как в Rails.
 - Identifier'ы → per-connection fiber state.
 
+## Статус (Iteration 7 — кросс-процессные pubsub-адаптеры готовы)
+
+- Порт `PubsubAdapter` включён в `SubscriptionAdapter::Base`; 1:1
+  Rails-API (broadcast/subscribe/unsubscribe/shutdown) остался на Base.
+- `src/adapters/redis_pubsub.cr` — `SubscriptionAdapter::Redis`:
+  broadcast → PUBLISH, подписки — одно выделенное SUBSCRIBE-соединение
+  (новые каналы дописываются в него под Mutex).
+- `src/adapters/pg_pubsub.cr` — `SubscriptionAdapter::PostgreSQL`:
+  LISTEN/NOTIFY (аналог solid_cable без таблицы поллинга): стримы →
+  безопасные идентификаторы (`ac_` + hex-SHA1), broadcast →
+  `pg_notify`; одна listen-связка на все стримы. Ограничение PG:
+  payload ≤ ~8000 байт на NOTIFY.
+- Оракул: `oracle/pubsub_cases.rb` → `pubsub_expected.yml`, снят с
+  настоящего ActionCable 8.1.4 Redis-адаптера (5 кейсов). Зеркало
+  `spec/pubsub_spec.cr`: одни и те же кейсы для Redis и PostgreSQL.
+  Сюит 25/25.
+- Отклонения: `unsubscribe` дропает коллбэки канала в процессе, но не
+  redis-подписку (Proc без identity — как в Test/Async); broadcast
+  возвращает nil, а не счётчик получателей PUBLISH.
+- Бенч: `bench/crails_pubsub` → `bench/results/202-pubsub.md`.
+
 ## Статус (Iteration 5 — P1.5 fast broadcast готов, бенч снят)
 
 - Oracle: `oracle/cases.rb` → `oracle/expected.yml`, 14 кейсов сняты с

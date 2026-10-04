@@ -10,12 +10,13 @@
 > - ⬜ не начато
 > - ❌ Crystal не позволит / осознанное отклонение (эквивалент указан)
 
-**Статус (2026-10-03): 248/248 спеков зелёные (oracle: crud/dirty/callbacks/
+**Статус (2026-10-03): 249/249 спеков зелёные (oracle: crud/dirty/callbacks/
 validations/associations/transactions/relation §2/persistence §6/proxy §5/
 P1-хвост/P2 (through, polymorphic, HABTM, counter_cache/touch/inverse_of,
 includes/preload, eager_load/references, optimistic locking, STI, enum/store/
 alias_attribute/attr_readonly/cache_key/has_secure_token, nested attributes)
-+ migrations). P0–P2 закрыты; остатки — см. «Порядок оставшихся работ».**
++ migrations + schema.cr (дамп 1:1 с schema.rb-оракулом + schema:load
+round-trip)). P0–P2 закрыты; остатки — см. «Порядок оставшихся работ».**
 
 ## Ключевой механизм
 
@@ -57,7 +58,7 @@ Rails генерит методы атрибутов в рантайме (`defin
 | API (Rails) | Статус | Примечание |
 |---|---|---|
 | `establish_connection` (URL / config / database.yml) | ✅ | unix-сокеты, `schema_search_path`, пул |
-| Кодоген атрибутов `name / name= / name? / name_was / name_changed?` | ✅ | `{{ run }}` из schema.yml |
+| Кодоген атрибутов `name / name= / name? / name_was / name_changed?` | ✅ | `{{ run }}` из schema.yml (fallback-формат дампа; primary — db/schema.cr, но кодоген читает YAML) |
 | `table_name=`, `primary_key=` | ✅ | `set_table_name` / `set_primary_key`; кастомный pk живёт в `@id` (`w.uid` → `w.id`) |
 | `attribute :x, default:` | ✅ | `attribute :nickname, default: "anon"`; применяется только к NEW-записям (NULL из БД остаётся nil — oracle-проверено); type-аргумент принимается, но игнорируется (типы из схемы) |
 | Рантайм-методы после смены схемы БЕЗ рекомпиляции | ❌ | эквивалент: `crails watch` = rebuild |
@@ -157,9 +158,11 @@ Rails генерит методы атрибутов в рантайме (`defin
 | `execute`, реверс `change` (command recorder), up/down | ✅ | |
 | `change_table` (column/remove/rename/change_default/change_null/index) | ✅ | прокси поверх обратимых операций |
 | `create_join_table` | ✅ | сортированная пара, singular-колонки, без PK, БЕЗ индекса (1:1 с 8.1.4) |
-| `add_check_constraint` / `remove_check_constraint` | 🔶 | реализовано (SQL исполняется в oracle-миграции), в дамп схемы не входит |
+| `add_check_constraint` / `remove_check_constraint` | ✅ | входит в дамп как `t.check_constraint "expr", name:` (oracle-сверено) |
 | `reversible`-блоки | ✅ | `dir.up { ... } / dir.down { ... }`; down-блок пишется в recorder как обратная операция |
-| `crails db:migrate / rollback / schema:dump` | ✅ | |
+| `crails db:migrate / rollback / schema:dump` | ✅ | дампит `db/schema.cr` (primary) + `db/schema.yml` (fallback: вход кодогена моделей) |
+| `db/schema.cr` — аналог Rails `schema.rb` | ✅ | синтаксис 1:1 с 8.1.4 (oracle/schema.rb → oracle/schema_expected.cr, байт-в-байт): `ActiveRecord::Schema[8.1].define(version:)`, `create_table ... force: :cascade`, `t.index/t.check_constraint`, `enable_extension`, `add_foreign_key`; отличия от Ruby: `require "active_record_cr"` в шапке, `default: [] of Int64` (типизированный пустой литерал); expression-дефолты (`now()`) в дамп не попадают |
+| `crails db:schema:load` | ✅ | пересоздаёт БД из `db/schema.cr` через `crystal run`-раннер (компиляция ~сек, осознанное отклонение от мгновенного `ruby db/schema.rb`); `assume_migrated_upto` проставляет версии в `schema_migrations` |
 
 ## 9. Прочее (P2)
 
@@ -187,8 +190,9 @@ Rails генерит методы атрибутов в рантайме (`defin
 ## Тестирование (правило AGENTS.md)
 
 Каждая фича начинается с интеграционных кейсов: `oracle/cases.rb` +
-`oracle/migrations.rb` снимаются с настоящего activerecord 8.1.4; зеркала в
-`spec/oracle_spec.cr` / `spec/migrations_spec.cr` воспроизводят
+`oracle/migrations.rb` / `oracle/schema.rb` снимаются с настоящего
+activerecord 8.1.4; зеркала в `spec/oracle_spec.cr` /
+`spec/migrations_spec.cr` / `spec/schema_spec.cr` воспроизводят
 expected-файлы без правки тестов. Кейс-модели добавляются пачками
 (`TxPost`, `ScopedPost`, `IncAuthor`, `AroundPost`, `LegacyPost`, …).
 

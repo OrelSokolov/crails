@@ -1,6 +1,8 @@
 require "log"
 require "http"
 require "action_pack_cr"
+require "./observability"
+require "./otel"
 
 # CRails — the `Rails` module equivalent (the `CRails` namespace is the
 # only intentional 1:1 difference, see ../PLAN.md).
@@ -58,6 +60,16 @@ module CRails
   class Config
     property host : String = "localhost"
     property port : Int32 = 3000
+    # JSON request logs: CRails extension (Rails 8 ships no JSON log
+    # formatter); on by default in production like Rails' JSON-ish prod
+    # logging posture, text lines elsewhere. CRAILS_LOG_JSON=1 forces
+    # JSON in any env (ops/bench knob).
+    def initialize
+      @log_json = CRails.env.production? || ENV["CRAILS_LOG_JSON"]? == "1"
+    end
+
+    property log_json : Bool
+    property? metrics : Bool = true
   end
 
   class Application
@@ -77,16 +89,28 @@ module CRails
 
     # HTTP entry point: routing + dispatch + logging + error pages.
     def call(context : HTTP::Server::Context) : Nil
+      rid = Observability.request_id(context)
+      context.response.headers[Observability::REQUEST_ID_HEADER] = rid
       started = Time.instant
       status = 200
+      unless config.log_json
+        CRails.logger.info { Observability.log_started(rid, context) }
+      end
       begin
-        dispatch(context)
+        unless Observability.builtin?(context, routes, rid, config.log_json)
+          dispatch(context, rid)
+        end
         status = context.response.status.code
       rescue ex : ActionController::RoutingError
         context.response.status_code = 404
-        context.response.headers["Content-Type"] = "text/plain; charset=utf-8"
-        context.response.print "404 Not Found (#{ex.message})"
+        context.response.headers["Content-Type"] = "text/html; charset=UTF-8"
+        context.response.print NOT_FOUND_PAGE
         status = 404
+      rescue ex : ActionController::TooManyRequests
+        CRails.logger.warn { "#{context.request.method} #{context.request.path} rate limited (429)" }
+        context.response.status_code = 429
+        context.response.headers["Content-Type"] = "text/html; charset=utf-8"
+        status = 429
       rescue ex : Exception
         CRails.logger.error(exception: ex) { "#{context.request.method} #{context.request.path} failed" }
         context.response.status_code = 500
@@ -97,15 +121,19 @@ module CRails
         status = 500
       ensure
         elapsed = Time.instant - started
-        if elapsed >= 1.millisecond
-          CRails.logger.info { "#{context.request.method} #{context.request.path} -> #{status} (#{elapsed.total_milliseconds.round.to_i}ms)" }
+        duration_ms = elapsed.total_milliseconds
+        context.response.headers["X-Runtime"] = elapsed.total_seconds.to_s
+        Observability::METRICS.observe(context.request.method, status, elapsed.total_seconds)
+        OTel.record_http_span(rid, context.request.method, context.request.path, status, elapsed.total_seconds)
+        if config.log_json
+          CRails.logger.info { Observability.log_json_entry(rid, context, status, duration_ms) }
         else
-          CRails.logger.info { "#{context.request.method} #{context.request.path} -> #{status} (#{(elapsed.total_nanoseconds // 1000).to_i}µs)" }
+          CRails.logger.info { Observability.log_completed(rid, status, duration_ms) }
         end
       end
     end
 
-    private def dispatch(context : HTTP::Server::Context) : Nil
+    private def dispatch(context : HTTP::Server::Context, rid : String? = nil) : Nil
       match = routes.match(context.request.method, context.request.path)
       unless match
         raise ActionController::RoutingError.new(
@@ -116,22 +144,41 @@ module CRails
         raise ActionController::RoutingError.new(
           "Unknown controller '#{match.route.controller}' (not registered at compile time)")
       end
+      if rid && !config.log_json
+        CRails.logger.info { Observability.log_processing(rid, match.route.controller, match.route.action, nil) }
+      end
       controller = klass.new(context)
       controller.__set_params(match.params)
       controller.__run_action(match.route.action)
     end
 
-    # --- built-in server binary commands (bin/app serve|routes) ---
+    NOT_FOUND_PAGE = "<!doctype html><html><body><h1>404 Not Found</h1></body></html>"
+
+    # --- built-in server binary commands (bin/app serve|routes|bot:poll) ---
 
     def boot(argv : Array(String)) : Nil
       case argv[0]? || "serve"
       when "serve" then serve(argv.skip(1)) # skip(1), not [1..]: [][1..] raises
       when "routes" then print_routes
+      when "bot:poll"
+        platform = argv[1]? || "telegram"
+        if poller = bot_poller
+          STDERR.puts "ActionBot: polling #{platform} (Ctrl-C to stop)"
+          poller.call(platform)
+        else
+          STDERR.puts "No bots compiled in (app/bots/** defines them; " \
+                      "crails generate bot adds the wiring)"
+          exit 1
+        end
       else
-        STDERR.puts "Usage: app [serve] [routes] [-p PORT] [-b HOST]"
+        STDERR.puts "Usage: app [serve] [routes] [bot:poll PLATFORM] [-p PORT] [-b HOST]"
         exit 1
       end
     end
+
+    # Set by the app's app/bots/** glue (`bin/app bot:poll telegram`);
+    # keeps railties free of an action_bot dependency.
+    property bot_poller : Proc(String, Nil)? = nil
 
     private def serve(args : Array(String)) : Nil
       port = config.port
@@ -150,9 +197,41 @@ module CRails
       server = HTTP::Server.new do |context|
         CRails.application.call(context)
       end
-      address = server.bind_tcp(host, port)
-      CRails.logger.info { "CRails #{VERSION} (#{CRails.env}) listening on http://#{address}" }
+      reuse_port = ENV["CRAILS_REUSE_PORT"]? == "1"
+      address = server.bind_tcp(host, port, reuse_port: reuse_port)
+      write_pidfile
+      # Graceful shutdown: stop accepting, let in-flight requests
+      # finish, exit 0. With CRAILS_REUSE_PORT=1 a replacement process
+      # binds the same port first, giving zero-downtime restarts.
+      shutdown = ->(signal : Signal) do
+        CRails.logger.info { "SIG#{signal} received, shutting down gracefully" }
+        spawn do
+          server.close
+          # Give in-flight requests a moment to drain, then exit.
+          sleep 2.seconds
+          exit 0
+        end
+      end
+      Signal::INT.trap { shutdown.call(Signal::INT) }
+      Signal::TERM.trap { shutdown.call(Signal::TERM) }
+      CRails.logger.info { "CRails #{VERSION} (#{CRails.env}) listening on http://#{address}#{" (reuse_port)" if reuse_port}" }
       server.listen
+      # server.listen returns once the server is closed: drain is done.
+      CRails.logger.info { "server drained, bye" }
+      delete_pidfile
+    end
+
+    private def write_pidfile : Nil
+      dir = File.join(CRails.root, "tmp", "pids")
+      Dir.mkdir_p(dir)
+      File.write(File.join(dir, "app.pid"), Process.pid.to_s)
+    rescue File::Error
+      # read-only FS or missing tmp/: pidfile is best-effort
+    end
+
+    private def delete_pidfile : Nil
+      File.delete(File.join(CRails.root, "tmp", "pids", "app.pid"))
+    rescue File::Error
     end
 
     def print_routes : Nil

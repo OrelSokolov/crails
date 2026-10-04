@@ -36,9 +36,18 @@ module ActiveSupport
 
     def self.instrument(name : String, payload : Hash(String, ActiveSupport::Any) = {} of String => ActiveSupport::Any)
       event = Event.new(name, payload)
-      result = yield event
-      publish(event)
-      result
+      begin
+        result = yield event
+        publish(event)
+        result
+      rescue ex : Exception
+        # Rails semantics: an exception escaping the instrumented block is
+        # recorded on the payload, the event is still published, then the
+        # exception is re-raised (rate_limit relies on this).
+        event.payload["exception"] = "#{ex.class.name}: #{ex.message}"
+        publish(event)
+        raise ex
+      end
     end
 
     def self.instrument(name : String)
