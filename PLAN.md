@@ -142,9 +142,16 @@ Views/AR/GC, /up без ETag/Cache-Control; JSON-лог и /metrics — расш
       Notifications.instrument — публикация события при исключении,
       как в Rails). Отклонения: `by:`/`with:` — Symbol-имя метода
       (нет instance_exec), в payload request — path, within — String
-- [ ] secure-by-default cookies/headers, CSP nonce (сначала
-      middleware-стек `config.middleware` поверх HTTP::Handler — его
-      в коде ещё нет, только заявка в PLAN)
+- [~] secure-by-default cookies/headers, CSP nonce: middleware-стек
+      готов (2026-10-04) — `config.middleware` поверх `HTTP::Handler`
+      (порт `ActionDispatch::MiddlewareStack`, оракул 8.1.4 — 29
+      кейсов, зеркало 29/29; дефолт RequestId→RequestLogger→
+      ShowExceptions→Head, конвейер извлечён из `Application#call`;
+      `crails middleware`; Rack::Head-порт: HEAD→GET + отброс тела,
+      Content-Length 0; X-Runtime `%.6f`; Cookies/Session/Flash
+      остаются controller-side — documented deviation; бенч
+      `results/501-middleware.md` −3% RPS). Осталось: сами
+      secure headers/CSP-мiddleware поверх стека
 - [ ] sandboxed миграции
 - [ ] `crails check` (пассивный анализ в духе Brakeman)
 
@@ -208,6 +215,27 @@ Views/AR/GC, /up без ETag/Cache-Control; JSON-лог и /metrics — расш
       (429), спек скипается до пополнения. Осталось:
       Anthropic-провайдер, мосты (эмиттер→ActionBot/SSE, ask_later),
       P1/P2.
+- [x] **Iteration 19** — turbo.cr ✅ (2026-10-04): порт turbo-rails
+      2.0.20 (Turbo Streams) — StreamsTagBuilder (7 действий + refresh
+      + кастомные), StreamsChannel/Broadcasts, Broadcastable-миксин
+      (broadcasts/broadcasts_to на after_commit, GlobalID-lite,
+      suppressing), _later-джобы через ActiveJob, view-хелперы
+      (turbo_stream_from/turbo_frame_tag), HTTP-формат
+      text/vnd.turbo-stream.html в action_pack (respond_to,
+      #{action}.turbo_stream.erb, http-фоллбэк redirect). Oracle
+      60 кейсов с настоящего turbo-rails (oracle/cases.rb), зеркало
+      6/6 групп; регресс соседей зелёный (AS 269 / AV 109 / AP 53 /
+      AC 25 / AJ 56). Пререквизиты: MessageVerifier в active_support
+      (HMAC-hexdigest), dom_id/record_identifier и статические
+      tag_options в action_view, AVPartialLocal-алиас (инвариантность
+      генериков). Demo: /notes живёт на Turbo Streams (broadcasts →
+      prepend/replace/remove через /cable + destroy.turbo_stream.erb),
+      vendored @hotwired/turbo + мини-cable-connector; E2E-смоук
+      spec/e2e_smoke.cr PASSED. Бенч results/401-turbo-streams.md
+      (рендер тега 2.1–2.7M/s, броадкаст 1.3–1.8M/s, fanout ×10
+      12.7–18.5M deliveries/s). Отклонения: renderer-seam вместо
+      ApplicationController.render, kwargs → named args (turbo.cr/
+      PLAN.md).
 - [ ] **Iteration 18** — action_mcp.cr: приложение становится
       MCP-сервером (Streamable HTTP `/mcp`, JSON-RPC 2.0:
       initialize/tools list/call) — экспонирует те же

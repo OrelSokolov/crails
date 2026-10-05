@@ -17,13 +17,27 @@
 - Config: `config/application.cr` + `config/environments/{development,
   test,production}.cr`; `config.time_zone`, `config.cache_store`,
   `config.middleware.use/insert_before/insert_after/swap/delete`
-  (стек = `HTTP::Handler`-цепочка), `config.generators`,
+  **✅ сделано (2026-10-04)** — порт `ActionDispatch::MiddlewareStack`
+  (`src/middleware.cr`): стек = `HTTP::Handler`-цепочка (`#next`),
+  соответствие по имени как в Ruby; дефолтный стек RequestId →
+  RequestLogger → ShowExceptions → Head (+ терминальный Dispatcher);
+  оракул с 8.1.4 (`oracle/middleware_cases.rb`, 29 кейсов: семантика
+  стека, дефолт Rails, HEAD/Rack::Runtime/insert_before по HTTP),
+  зеркало `spec/middleware_spec.cr`; `crails middleware` (= rake
+  middleware). Cookies/Session/Flash остаются controller-side —
+  documented deviation (нет request-env для предзагрузки jar'ов);
+  constructor-args у узлов нет (конфиг читается на call), `X-Runtime`
+  теперь `%.6f` как Rack::Runtime. Бенч `bench/results/501-middleware.md`
+  (−3% RPS на цепочке). Остальное (time_zone, cache_store, generators,
+  config.x, after_initialize) — P1, `config.generators`,
   `config.x.*` (Hash для произвольных ключей),
   `config.after_initialize`, `initializer "name" do |app|`
 - Credentials: `config/credentials.yml.enc` + master key (как в Rails)
 - Middleware-стек по умолчанию (аналогичный состав): HostAuthorization,
   SSL, Static, RequestId, RemoteIp, Logger, ShowExceptions, Cookies,
-  Session, Flash, CSP
+  Session, Flash, CSP — **RequestId/Logger/ShowExceptions/Head готовы
+  (2026-10-04, см. выше); HostAuthorization/SSL/Static/CSP — P1**;
+  Cookies/Session/Flash — controller-side (deviation)
 - Sessions: cookie_store по умолчанию (signed), cache_store
 
 ## CLI: `crails` (вместо `rails`)
@@ -70,7 +84,8 @@ Zeitwerk/autoload (`zeitwerk:check`), `to_prepare`-семантика,
 - P0 (Iteration 0): `crails new` + `crails server` для hello world,
   роутер, контроллер, ECR-вьюха, `crails routes`, `crails watch`.
 - P1: `generate` (model/controller/scaffold/migration), `db:*`,
-  environments-конфиг, credentials, middleware-стек API.
+  environments-конфиг, credentials, middleware-стек API
+  **(middleware-стек — готов, 2026-10-04)**.
 - P2: console, runner, stats/initializers/about, dev:cache.
 
 ## Готово, когда
@@ -79,6 +94,69 @@ Zeitwerk/autoload (`zeitwerk:check`), `to_prepare`-семантика,
 с нуля без ручных правок файлов.
 
 ## Статус
+
+### Iteration 13 — generators (generate/destroy) ✅ (2026-10-05)
+Oracle-first: `oracle/generators_cases.rb` — 41 кейс с Rails 8.1.4
+(model/scaffold/controller/mailer/job/channel/mailbox/helper/migration/
+resource_route: файловый вывод + stdout invoke/create/identical/route)
+→ `oracle/generators_expected.yml`; зеркало `spec/generators_spec.cr`
+(27/27; полный railties — 96/96).
+
+- `src/generators/`: base (thor-подобный вывод, `--pretend`/`--force`/
+  `--skip`, behavior :invoke/:revoke), fields/migration_builder/
+  model_files, генераторы model/scaffold/controller/mailer/job/channel/
+  mailbox/helper/migration; CLI-таблица `GENERATORS` в `src/cli.cr`,
+  `crails destroy` = generate с behavior :revoke
+- CRails-расширения (объясняют `patch src/app.cr`/`symlink` в выводе):
+  `AppGlue.patch_requires` патчит `src/app.cr` requires для затронутых
+  app/-директорий (нет zeitwerk); `AppGlue.ensure_shard` симлинкует
+  фреймворк-шарды (mailbox → action_mailbox + active_storage)
+- E2E (tmp-приложение): все 8 генераторов одной пачкой → db:migrate →
+  `crystal build src/app.cr` — зелёный; REST scaffold 200/302 +
+  404 на удалённой записи
+- Зафиксированные при e2e: `ActionCable::Connection` (порт даёт
+  конкретный класс, не `Connection::Base`); `require "../app/channels/
+  application_cable/**"` перед `app/channels/**` (glob `**` даёт файлы
+  корня раньше поддиректорий); `Base.migration_filename` — монотонные
+  версии миграций (мigrator сортирует строго по version; идентичное
+  имя при re-run `--force` остаётся `identical`);
+  `AppGlue.ensure_active_storage_tables` — аналог
+  `rails active_storage:install` (кодеген моделей читает db/schema.yml
+  приложения); `ShowExceptions`: ActiveRecord::RecordNotFound → 404
+  (матч по имени класса — railties_cr не зависит от active_record_cr)
+- Отклонения от оракула (футер spec/generators_spec.cr): .cr-файлы;
+  `ActiveRecord::Migration` без [8.1]; spec/ вместо test/; `invoke
+  spec` вместо `invoke test_unit`; явные `to:` в route; ручные URL во
+  вьюхах; raw `<form>`; патчи src/app.cr + symlink — расширения; JS/
+  importmap для channel пропущены
+
+### Iteration 12a — middleware-стек ✅ (2026-10-04)
+Oracle-first: `oracle/middleware_cases.rb` — 29 кейсов с Rails 8.1.4
+(семантика `ActionDispatch::MiddlewareStack`: use/unshift/
+insert_before/insert_after/swap/delete/delete!/move_before/move_after,
+сообщения об ошибках, equality/inspect/build; дефолтный стек реального
+приложения; HTTP-поведение: HEAD /up через Rack::Head, X-Runtime
+Rack::Runtime, insert_before кастомного middleware из конфига) →
+`oracle/middleware_expected.yml`; зеркало `spec/middleware_spec.cr`.
+
+- `src/middleware.cr`: `CRails::MiddlewareStack` (порт 1:1,
+  соответствие узлов по имени, сборка через `HTTP::Handler#next`) +
+  `CRails::Middleware::{RequestId, RequestLogger, ShowExceptions,
+  Head, Dispatcher}` — конвейер `Application#call` извлечён в стек
+- `config.middleware` в `CRails::Config`; инъекция приложения в
+  middleware при сборке цепочки (аналог rack-аргумента `app`, без
+  зависимости от глобала `CRails.application`)
+- `crails middleware` / `bin/app middleware` — аналог `rake middleware`
+- Head: HEAD диспетчеризуется как GET, тело отбрасывается через
+  подмену `response.output`, Content-Length = 0 (как оракул 8.1.4)
+- Отклонения (футер spec/middleware_spec.cr): RuntimeError → Exception
+  (сообщения те же), узлы без constructor-args (конфиг на call-time),
+  Cookies/Session/Flash не переносятся в стек, нет
+  InstrumentationProxy (P2), дефолтный стек — только имеющие
+  counterpart записи Rails 8.1 (маппинг в шапке middleware.cr)
+- Бенч `bench/results/501-middleware.md`: −3% RPS за цепочку (A/B на
+  одной машине); регресс соседей нет (railties 69/69, action_pack
+  53/53)
 
 ### Iteration 11 — observability + deploy ✅ (2026-10-03)
 Oracle-first: `oracle/observability_cases.rb` — 20 кейсов с Rails 8.1.4

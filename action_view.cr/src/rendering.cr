@@ -121,6 +121,15 @@ module ActionView
         {% uniq << t unless uniq.map(&.stringify).includes?(t.stringify) %}
       {% end %}
 
+      # The union goes through an alias: a macro-pasted `Union(...)`
+      # used directly as a call-site restriction does not unify with
+      # the same union written as a hash's value type when sibling
+      # classes collapse to a common ancestor (e.g. two AR models) —
+      # generics are invariant over distinct instantiations
+      # (Crystal 1.21). Through the alias both sides resolve to one
+      # type.
+      alias AVPartialLocal = Union({% for t in uniq %}{{ t.resolve }}, {% end %})
+
       {% for name, defn in partials %}
         def __av_partial_{{ name.id.gsub(/[^a-zA-Z0-9_]/, "_").id }}({% for key, type in defn[:locals] %}{{ key.id }} : {{ type }}, {% end %}) : ActionView::SafeString
           outer = @__av_buf
@@ -137,7 +146,7 @@ module ActionView
       # union — a macro-pasted union used as a call-site restriction
       # binds to the argument's own value type, breaking member casts
       # (Crystal 1.21; hash literals don't upcast to union values).
-      def __av_render_partial(name : String, locals : Hash(String, Union({% for t in uniq %}{{ t.resolve }}, {% end %}))) : ActionView::SafeString
+      def __av_render_partial(name : String, locals : Hash(String, AVPartialLocal)) : ActionView::SafeString
         case name
         {% for name, defn in partials %}
         when {{ name }} then __av_partial_{{ name.id.gsub(/[^a-zA-Z0-9_]/, "_").id }}({% for key, type in defn[:locals] %}locals[{{ key }}].as({{ type }}), {% end %})
@@ -152,7 +161,7 @@ module ActionView
       # `locals: {"post" => post}`, not `locals: {post: post}` (a Ruby
       # hash literal is a NamedTuple in Crystal). Documented deviation.
       def render(partial : String, locals : Hash? = nil) : ActionView::SafeString
-        h = {} of String => Union({% for t in uniq %}{{ t.resolve }}, {% end %})
+        h = {} of String => AVPartialLocal
         locals.try { |l| l.each { |k, v| h[k.to_s] = v } }
         __av_render_partial(partial, h)
       end
@@ -169,9 +178,9 @@ module ActionView
         ActionView::SafeString.new(String.build do |buf|
           collection.each_with_index do |item, i|
             if spacer_template && i > 0
-              buf << __av_render_partial(spacer_template, {} of String => Union({% for t in uniq %}{{ t.resolve }}, {% end %})).raw
+              buf << __av_render_partial(spacer_template, {} of String => AVPartialLocal).raw
             end
-            l = {} of String => Union({% for t in uniq %}{{ t.resolve }}, {% end %})
+            l = {} of String => AVPartialLocal
             locals.try { |ls| ls.each { |k, v| l[k.to_s] = v } }
             l[key] = item
             l["#{key}_counter"] = i

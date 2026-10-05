@@ -72,6 +72,26 @@ describe "CRails::Routes" do
       set.draw { get "/oops" }
     end
   end
+
+  it "resources draws the seven RESTful routes with Rails names" do
+    set = CRails::Routes::RouteSet.new
+    set.draw { resources :posts }
+    table = set.routes.map { |r| {r.verb, r.pattern, r.controller, r.action, r.name} }
+    table.should eq([
+      {"GET", "/posts", "posts", "index", "posts"},
+      {"GET", "/posts/new", "posts", "new", "new_post"},
+      {"GET", "/posts/:id/edit", "posts", "edit", "edit_post"},
+      {"GET", "/posts/:id", "posts", "show", "post"},
+      {"POST", "/posts", "posts", "create", nil},
+      {"PATCH", "/posts/:id", "posts", "update", nil},
+      {"PUT", "/posts/:id", "posts", "update", nil},
+      {"DELETE", "/posts/:id", "posts", "destroy", nil},
+    ])
+    set.match("GET", "/posts").not_nil!.route.name.should eq("posts")
+    set.match("GET", "/posts/42").not_nil!.params["id"].should eq("42")
+    set.match("DELETE", "/posts/42").should_not be_nil
+    set.match("GET", "/posts/new").not_nil!.route.action.should eq("new")
+  end
 end
 
 describe "ActionController::Dispatch codegen" do

@@ -8,11 +8,19 @@ module ActionView
   module Helpers
     module TagHelper
       # Escapes attribute values the way Rails tag_options does.
-      def __av_attr_escape(value : String) : String
+      def self.__av_attr_escape(value : String) : String
         value.gsub('&', "&amp;")
           .gsub('"', "&quot;")
           .gsub('<', "&lt;")
           .gsub('>', "&gt;")
+      end
+
+      def __av_attr_escape(value : String) : String
+        TagHelper.__av_attr_escape(value)
+      end
+
+      def self.__av_value_to_s(value) : String
+        value.to_s
       end
 
       def __av_value_to_s(value) : String
@@ -28,7 +36,9 @@ module ActionView
 
       def __av_opts_to_h(opts) : Hash(String, AttrVal)
         h = {} of String => AttrVal
-        opts.each { |k, v| h[k.to_s] = v.as(AttrVal) }
+        opts.each do |k, v|
+          h[k.to_s] = v.is_a?(Symbol) ? v.to_s : v.as(AttrVal)
+        end
         h
       end
 
@@ -40,7 +50,21 @@ module ActionView
         end
       end
 
+      # Static entry point for code outside a view (turbo.cr's tag
+      # builders run on channel/model classes, not view instances).
+      def self.tag_options(opts) : String
+        String.build do |io|
+          opts.each do |key, value|
+            new_tag_option(io, key.to_s, value)
+          end
+        end
+      end
+
       private def __av_tag_option(io : IO, key : String, value) : Nil
+        TagHelper.new_tag_option(io, key, value)
+      end
+
+      def self.new_tag_option(io : IO, key : String, value) : Nil
         case value
         when Bool
           io << " " << key << %(="#{key}") if value
@@ -48,7 +72,7 @@ module ActionView
           # omitted
         when Hash
           value.each do |nested_key, nested_value|
-            __av_tag_option(io, "#{key}-#{nested_key}", nested_value)
+            new_tag_option(io, "#{key}-#{nested_key}", nested_value)
           end
         else
           io << " " << key << "=" << '"' << __av_attr_escape(__av_value_to_s(value)) << '"'

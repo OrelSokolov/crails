@@ -117,6 +117,8 @@ module ActionController
       @performed = true
       response.status_code = status_code(status)
       response.headers["Location"] = location
+      # любой Rails-ответ несёт Content-Type; редирект — text/html
+      response.headers["Content-Type"] ||= "text/html; charset=utf-8"
     end
 
     def redirect_back(fallback_location : String, status = 302) : Nil
@@ -142,15 +144,31 @@ module ActionController
         yield if @format == "json"
       end
 
+      # format.turbo_stream без блока — не-op: дефолтный рендер после
+      # экшена сам отрендерит #{action}.turbo_stream.erb (см.
+      # __default_render), как implicit render в Rails. С блоком —
+      # исполняет блок (как html/json).
+      def turbo_stream(&) : Nil
+        return unless @format == "turbo_stream"
+        yield
+      end
+
+      def turbo_stream : Nil
+      end
+
       def any(&) : Nil
         yield
       end
     end
 
-    # html unless ?format=json / .json / Accept: application/json
+    # html unless ?format=json / .json / Accept: application/json;
+    # turbo_stream по ?format= / Accept: text/vnd.turbo-stream.html
     private def __request_format : String
-      if (fmt = params[:format]?.try(&.to_s)) && fmt == "json"
-        return "json"
+      if (fmt = params[:format]?.try(&.to_s)) && {"json", "turbo_stream"}.includes?(fmt)
+        return fmt
+      end
+      if request.headers["Accept"]?.try(&.includes?("text/vnd.turbo-stream.html"))
+        return "turbo_stream"
       end
       if request.headers["Accept"]?.try(&.includes?("application/json"))
         return "json"
@@ -245,10 +263,16 @@ module ActionController
 
     def __default_render(action : String) : Nil
       @performed = true
-      content = __render_view(action)
-      body = __layout? ? __render_layout { content.to_s } : content.to_s
-      response.headers["Content-Type"] = "text/html; charset=utf-8"
-      response.print body
+      if __request_format == "turbo_stream"
+        content = __render_view(action, "turbo_stream").to_s
+        response.headers["Content-Type"] = "text/vnd.turbo-stream.html; charset=utf-8"
+        response.print content
+      else
+        content = __render_view(action)
+        body = __layout? ? __render_layout { content.to_s } : content.to_s
+        response.headers["Content-Type"] = "text/html; charset=utf-8"
+        response.print body
+      end
     end
 
     def __layout? : Bool
@@ -363,7 +387,11 @@ macro finished
 
         # Render the action's ERB template with the controller as
         # context (instance variables, `params`, helpers are visible).
-        def __render_view(action : String) : ::ActionView::SafeString
+        # `format` = "html" (default) or "turbo_stream".
+        def __render_view(action : String, format : String = "html") : ::ActionView::SafeString
+          if format == "turbo_stream"
+            return __render_view_turbo_stream(action)
+          end
           case action
           {% for m in t.methods %}
             {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
@@ -384,12 +412,37 @@ macro finished
           end
         end
 
+        # Turbo-stream формат: #{action}.turbo_stream.erb без layout.
+        def __render_view_turbo_stream(action : String) : ::ActionView::SafeString
+          case action
+          {% for m in t.methods %}
+            {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
+            {% if is_action %}
+              {% ts_path = root + "/" + dir + "/" + m.name.stringify + ".turbo_stream.erb" %}
+          when {{ m.name.stringify }}
+            {% if (`(test -f #{ts_path} && echo yes) || true`) != "" %}
+              __av_ts_tpl_{{ m.name.id }}
+            {% else %}
+              raise ::ActionController::RoutingError.new("Missing template " + {{ ts_path }})
+            {% end %}
+            {% end %}
+          {% end %}
+          else
+            raise ::ActionController::RoutingError.new(
+              "No template for #{action} (#{self.class})")
+          end
+        end
+
         {% for m in t.methods %}
           {% is_action = m.args.empty? && !m.name.stringify.starts_with?("__") && m.name.stringify != m.name.stringify.capitalize %}
           {% if is_action %}
             {% path = root + "/" + dir + "/" + m.name.stringify + ".html.erb" %}
             {% if (`(test -f #{path} && echo yes) || true`) != "" %}
               compile_template "__av_tpl_{{ m.name.id }}", {{ path }}
+            {% end %}
+            {% ts_path = root + "/" + dir + "/" + m.name.stringify + ".turbo_stream.erb" %}
+            {% if (`(test -f #{ts_path} && echo yes) || true`) != "" %}
+              compile_template "__av_ts_tpl_{{ m.name.id }}", {{ ts_path }}
             {% end %}
           {% end %}
         {% end %}

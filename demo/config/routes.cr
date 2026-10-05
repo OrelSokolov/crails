@@ -19,4 +19,6 @@ CRails.application.routes.draw do
 
   get "/live", to: "live#index", as: "live"
   get "/live_assets/:file", to: "live#asset"
+
+  get "/assets/:file", to: "assets#show"
 end

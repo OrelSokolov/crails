@@ -1,0 +1,21 @@
+---
+posts:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('posts_id_seq'::regclass)
+  - name: title
+    type: varchar
+    nullable: 'YES'
+    default:
+messages:
+  columns:
+  - name: id
+    type: int8
+    nullable: 'NO'
+    default: nextval('messages_id_seq'::regclass)
+  - name: body
+    type: varchar
+    nullable: 'YES'
+    default:

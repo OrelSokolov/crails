@@ -2,6 +2,7 @@ require "log"
 require "http"
 require "action_pack_cr"
 require "./observability"
+require "./middleware"
 require "./otel"
 
 # CRails — the `Rails` module equivalent (the `CRails` namespace is the
@@ -66,16 +67,27 @@ module CRails
     # JSON in any env (ops/bench knob).
     def initialize
       @log_json = CRails.env.production? || ENV["CRAILS_LOG_JSON"]? == "1"
+      # Default middleware stack (Rails 8.1 order for the pieces CRails
+      # ships; the full Rails list is in oracle/middleware_expected.yml,
+      # default_stack_names). Apps mutate it freely in config/*.cr via
+      # use/insert_before/insert_after/swap/delete.
+      @middleware = CRails::MiddlewareStack.new
+      @middleware.use CRails::Middleware::RequestId
+      @middleware.use CRails::Middleware::RequestLogger
+      @middleware.use CRails::Middleware::ShowExceptions
+      @middleware.use CRails::Middleware::Head
     end
 
     property log_json : Bool
     property? metrics : Bool = true
+    getter middleware : CRails::MiddlewareStack
   end
 
   class Application
     getter routes : CRails::Routes::RouteSet
     getter config : CRails::Config
     getter? initialized = false
+    @middleware_chain : HTTP::Handler?
 
     def initialize
       @routes = CRails::Routes::RouteSet.new
@@ -87,72 +99,28 @@ module CRails
       self
     end
 
-    # HTTP entry point: routing + dispatch + logging + error pages.
+    # HTTP entry point: the middleware stack (config.middleware) with
+    # routing dispatch as the terminal handler.
     def call(context : HTTP::Server::Context) : Nil
-      rid = Observability.request_id(context)
-      context.response.headers[Observability::REQUEST_ID_HEADER] = rid
-      started = Time.instant
-      status = 200
-      unless config.log_json
-        CRails.logger.info { Observability.log_started(rid, context) }
-      end
-      begin
-        unless Observability.builtin?(context, routes, rid, config.log_json)
-          dispatch(context, rid)
-        end
-        status = context.response.status.code
-      rescue ex : ActionController::RoutingError
-        context.response.status_code = 404
-        context.response.headers["Content-Type"] = "text/html; charset=UTF-8"
-        context.response.print NOT_FOUND_PAGE
-        status = 404
-      rescue ex : ActionController::TooManyRequests
-        CRails.logger.warn { "#{context.request.method} #{context.request.path} rate limited (429)" }
-        context.response.status_code = 429
-        context.response.headers["Content-Type"] = "text/html; charset=utf-8"
-        status = 429
-      rescue ex : Exception
-        CRails.logger.error(exception: ex) { "#{context.request.method} #{context.request.path} failed" }
-        context.response.status_code = 500
-        context.response.headers["Content-Type"] = "text/plain; charset=utf-8"
-        body = "500 Internal Server Error"
-        body += "\n#{ex}\n#{ex.backtrace?.try(&.join('\n'))}" if CRails.env.development?
-        context.response.print body
-        status = 500
-      ensure
-        elapsed = Time.instant - started
-        duration_ms = elapsed.total_milliseconds
-        context.response.headers["X-Runtime"] = elapsed.total_seconds.to_s
-        Observability::METRICS.observe(context.request.method, status, elapsed.total_seconds)
-        OTel.record_http_span(rid, context.request.method, context.request.path, status, elapsed.total_seconds)
-        if config.log_json
-          CRails.logger.info { Observability.log_json_entry(rid, context, status, duration_ms) }
-        else
-          CRails.logger.info { Observability.log_completed(rid, status, duration_ms) }
-        end
-      end
+      middleware_chain.call(context)
     end
 
-    private def dispatch(context : HTTP::Server::Context, rid : String? = nil) : Nil
-      match = routes.match(context.request.method, context.request.path)
-      unless match
-        raise ActionController::RoutingError.new(
-          "No route matches #{context.request.method} #{context.request.path}")
+    # The composed handler chain — built once, on first use. Middleware
+    # added after the first request takes no effect (same as Rails:
+    # config.middleware mutations happen at boot time only).
+    def middleware_chain : HTTP::Handler
+      @middleware_chain ||= begin
+        head = config.middleware.build(Middleware::Dispatcher.new(self))
+        node = head
+        while node.is_a?(HTTP::Handler)
+          if node.is_a?(Middleware::Configurable)
+            node.application = self
+          end
+          node = node.next
+        end
+        head
       end
-      klass = ActionController::Dispatch.resolve(match.route.controller)
-      unless klass
-        raise ActionController::RoutingError.new(
-          "Unknown controller '#{match.route.controller}' (not registered at compile time)")
-      end
-      if rid && !config.log_json
-        CRails.logger.info { Observability.log_processing(rid, match.route.controller, match.route.action, nil) }
-      end
-      controller = klass.new(context)
-      controller.__set_params(match.params)
-      controller.__run_action(match.route.action)
     end
-
-    NOT_FOUND_PAGE = "<!doctype html><html><body><h1>404 Not Found</h1></body></html>"
 
     # --- built-in server binary commands (bin/app serve|routes|bot:poll) ---
 
@@ -160,6 +128,7 @@ module CRails
       case argv[0]? || "serve"
       when "serve" then serve(argv.skip(1)) # skip(1), not [1..]: [][1..] raises
       when "routes" then print_routes
+      when "middleware" then print_middleware
       when "bot:poll"
         platform = argv[1]? || "telegram"
         if poller = bot_poller
@@ -171,7 +140,7 @@ module CRails
           exit 1
         end
       else
-        STDERR.puts "Usage: app [serve] [routes] [bot:poll PLATFORM] [-p PORT] [-b HOST]"
+        STDERR.puts "Usage: app [serve] [routes] [middleware] [bot:poll PLATFORM] [-p PORT] [-b HOST]"
         exit 1
       end
     end
@@ -197,6 +166,7 @@ module CRails
       server = HTTP::Server.new do |context|
         CRails.application.call(context)
       end
+      middleware_chain # compose before listening: no first-request race
       reuse_port = ENV["CRAILS_REUSE_PORT"]? == "1"
       address = server.bind_tcp(host, port, reuse_port: reuse_port)
       write_pidfile
@@ -240,6 +210,11 @@ module CRails
         printf("%-12s %-7s %-24s %s#%s\n",
           route.name || "", route.verb, route.pattern, route.controller, route.action)
       end
+    end
+
+    # `rake middleware` equivalent: the effective stack, "use NAME" per line.
+    def print_middleware(io : IO = STDOUT) : Nil
+      config.middleware.each { |m| io << "use " << m.name << '\n' }
     end
   end
 end

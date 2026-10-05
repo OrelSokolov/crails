@@ -112,7 +112,7 @@ module ActiveRecord
     # 1:1 with the Ruby API and ignored: column types come from the
     # schema codegen.
     macro attribute(name, type = nil, default = nil)
-      {% ActiveRecord::ATTRIBUTE_DEFAULTS << { @type.name.stringify, name.id.stringify, default } %}
+      {% ActiveRecord::ATTRIBUTE_DEFAULTS << {@type.name.stringify, name.id.stringify, default} %}
     end
 
     # enum :status, {draft: 0, active: 1} — Ruby's `enum` is a keyword in
@@ -121,7 +121,7 @@ module ActiveRecord
     # predicates, `active!` save-bangs, `Model.active` scope,
     # `Model.statuses` mapping.
     macro ar_enum(name, values)
-      {% ActiveRecord::ENUMS << { @type.name.stringify, name.id.stringify, values } %}
+      {% ActiveRecord::ENUMS << {@type.name.stringify, name.id.stringify, values} %}
     end
 
     # store :settings, accessors: [:theme] — jsonb-backed accessor methods.
@@ -130,7 +130,7 @@ module ActiveRecord
     # `settings["theme"]` inspects like Ruby's Hash value ("dark", not
     # JSON::Any("dark")).
     macro store(attr_name, accessors = nil)
-      {% ActiveRecord::STORES << { @type.name.stringify, attr_name.id.stringify } %}
+      {% ActiveRecord::STORES << {@type.name.stringify, attr_name.id.stringify} %}
       {% for a in accessors %}
         def {{a.id}} : String?
           if (s = @{{attr_name.id}})
@@ -183,7 +183,7 @@ module ActiveRecord
         self.{{old_name.id}} = value
       end
 
-      {% ActiveRecord::ALIASES << { @type.name.stringify, new_name.id.stringify, old_name.id.stringify } %}
+      {% ActiveRecord::ALIASES << {@type.name.stringify, new_name.id.stringify, old_name.id.stringify} %}
     end
 
     # scope :published do ... end — the block body is spliced into a class
@@ -204,7 +204,7 @@ module ActiveRecord
     macro default_scope(&block)
       {% body = block.body %}
       {% if body.is_a?(Call) && body.name.stringify == "where" %}
-        {% ActiveRecord::DEFAULT_SCOPES << { @type.name.stringify, body } %}
+        {% ActiveRecord::DEFAULT_SCOPES << {@type.name.stringify, body} %}
       {% else %}
         {% raise "default_scope supports a single `where(...)` call (Crystal port limitation)" %}
       {% end %}
@@ -253,7 +253,7 @@ module ActiveRecord
       @original_attributes = attributes.dup
     end
 
-    def __previous_changes! (changes) : Nil
+    def __previous_changes!(changes) : Nil
       @previous_changes = changes
     end
 
@@ -462,13 +462,20 @@ module ActiveRecord
         {% end %}
         # STI subclasses inherit the table name (explicit override or
         # convention) from their model superclass (one level; deeper STI
-        # needs an explicit set_table_name).
+        # needs an explicit set_table_name). Intermediate abstract bases
+        # (ApplicationRecord) are not models — walk past them.
         {% table_class = class_name %}
         {% if custom_table.nil? && t.superclass.stringify != "ActiveRecord::Base" %}
+          {% super_is_model = false %}
+          {% for m in ActiveRecord::MODELS %}
+            {% if m.name.stringify == t.superclass.name.stringify && !m.abstract? %}
+              {% super_is_model = true %}
+            {% end %}
+          {% end %}
           {% for pair in ActiveRecord::TABLE_OVERRIDES %}
             {% if pair[0] == t.superclass.name.stringify %}{% custom_table = pair[1] %}{% end %}
           {% end %}
-          {% if custom_table.nil? %}
+          {% if custom_table.nil? && super_is_model %}
             {% table_class = t.superclass.name.split("::").last %}
           {% end %}
         {% end %}

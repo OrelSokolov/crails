@@ -97,12 +97,12 @@ module ActiveRecord
 
         def self.default_sql(default) : String
           case default
-          when String  then "'#{default}'"
+          when String then "'#{default}'"
           when JSON::Any
             "'#{default.to_json}'::jsonb"
-          when Array   then "'[]'"
+          when Array                then "'[]'"
           when Bool, Int64, Float64 then default.to_s
-          else default.to_s
+          else                           default.to_s
           end
         end
       end
@@ -135,7 +135,7 @@ module ActiveRecord
       end
 
       {% for t in %w(string text integer bigint float decimal boolean datetime
-                     time date json jsonb uuid binary) %}
+                    time date json jsonb uuid binary) %}
         def {{t.id}}(name : Symbol | String, **opts)
           column(name, {{t}}, **opts)
         end
@@ -147,13 +147,20 @@ module ActiveRecord
         column(:updated_at, :datetime, **merged)
       end
 
-      # references: bigint column + index (+ FK with foreign_key: true)
+      # references: bigint column + index (+ FK with foreign_key: true);
+      # polymorphic: true adds the `{name}_type` string column (Rails
+      # `t.references :tag, polymorphic: true` — needed by `crails generate
+      # model`), null: false carries over to the reference column.
       def references(name : Symbol | String, index : Bool = true,
-                     foreign_key : Bool = false, **opts)
+                     foreign_key : Bool = false, polymorphic : Bool = false,
+                     null : Bool = true, **opts)
         col = "#{name}_id"
-        columns << Column.new(col, "bigint", nil, true)
+        columns << Column.new(col, "bigint", nil, null)
+        if polymorphic
+          columns << Column.new("#{name}_type", "character varying(255)", nil, null)
+        end
         if index
-          add_index([col])
+          add_index(polymorphic ? [col, "#{name}_type"] : [col])
         end
         if foreign_key
           foreign_keys << ForeignKey.new(col, Migrations.tableize(name.to_s),
@@ -280,7 +287,7 @@ module ActiveRecord
       end
 
       {% for t in %w(string text integer bigint float decimal boolean datetime
-                     time date json jsonb uuid binary) %}
+                    time date json jsonb uuid binary) %}
         def {{t.id}}(name : Symbol | String, **opts)
           column(name, {{t}}, **opts)
         end
@@ -374,10 +381,23 @@ module ActiveRecord
       Base.connection.exec(%(ALTER TABLE "#{tbl}" ADD COLUMN #{column.to_sql}))
     end
 
-    def remove_column(table : Symbol | String, name : Symbol | String) : Nil
+    # Type is optional (Rails passes it so the reverse of remove_column
+    # can re-add the column; `crails generate migration RemoveXFromY`
+    # relies on this).
+    def remove_column(table : Symbol | String, name : Symbol | String,
+                      type : Symbol | String? = nil, **opts) : Nil
       if recording?
-        raise IrreversibleMigration.new(
-          "remove_column is only reversible if given the type (not supported)")
+        if type
+          col = TableDefinition::Column.new(name.to_s,
+            Migrations.sql_type(type, opts), opts[:default]?, Migrations.null_of(opts))
+          tbl = table.to_s
+          record(-> { Base.connection.exec(
+            %(ALTER TABLE "#{tbl}" ADD COLUMN #{col.to_sql})); nil })
+        else
+          raise IrreversibleMigration.new(
+            "remove_column is only reversible if given the type (not supported)")
+        end
+        return
       end
       Base.connection.exec(
         %(ALTER TABLE "#{table}" DROP COLUMN IF EXISTS "#{name}"))
@@ -454,33 +474,67 @@ module ActiveRecord
     end
 
     def add_reference(table : Symbol | String, name : Symbol | String,
-                      index : Bool = true, foreign_key : Bool = false) : Nil
+                      index : Bool = true, foreign_key : Bool = false,
+                      polymorphic : Bool = false) : Nil
       tbl = table.to_s
       col = "#{name}_id"
+      type_col = "#{name}_type"
       if recording?
         to_table = Migrations.tableize(name.to_s)
         fkn = Migrations.fk_name(tbl, col)
-        iname = Migrations.index_name(tbl, [col])
+        iname = Migrations.index_name(tbl, polymorphic ? [col, type_col] : [col])
         steps = [] of Proc(Nil)
         steps << -> { Base.connection.exec(%(DROP INDEX IF EXISTS "#{iname}")); nil }
         if foreign_key
           steps << -> { Base.connection.exec(%(ALTER TABLE "#{tbl}" DROP CONSTRAINT IF EXISTS "#{fkn}")); nil }
         end
         steps << -> { Base.connection.exec(%(ALTER TABLE "#{tbl}" DROP COLUMN IF EXISTS "#{col}")); nil }
+        if polymorphic
+          steps << -> { Base.connection.exec(%(ALTER TABLE "#{tbl}" DROP COLUMN IF EXISTS "#{type_col}")); nil }
+        end
         record(-> { steps.each(&.call); nil })
         return
       end
       add_column(table, col, :bigint)
+      if polymorphic
+        add_column(table, type_col, :string)
+      end
       if index
-        add_index(tbl, [col])
+        add_index(tbl, polymorphic ? [col, type_col] : [col])
       end
       if foreign_key
         add_foreign_key(tbl, Migrations.tableize(name.to_s), column: col)
       end
     end
+
     def add_belongs_to(table : Symbol | String, name : Symbol | String,
-                       index : Bool = true, foreign_key : Bool = false) : Nil
-      add_reference(table, name, index: index, foreign_key: foreign_key)
+                       index : Bool = true, foreign_key : Bool = false,
+                       polymorphic : Bool = false) : Nil
+      add_reference(table, name, index: index, foreign_key: foreign_key,
+        polymorphic: polymorphic)
+    end
+
+    def remove_reference(table : Symbol | String, name : Symbol | String,
+                         polymorphic : Bool = false, **opts) : Nil
+      if recording?
+        raise IrreversibleMigration.new("remove_reference is not reversible")
+      end
+      tbl = table.to_s
+      col = "#{name}_id"
+      type_col = "#{name}_type"
+      if polymorphic
+        remove_column(tbl, type_col)
+      end
+      Base.connection.exec(
+        %(ALTER TABLE "#{tbl}" DROP INDEX IF EXISTS "#{Migrations.index_name(tbl, [col])}"))
+      remove_foreign_key(tbl, Migrations.tableize(name.to_s)) rescue nil
+      Base.connection.exec(
+        %(ALTER TABLE "#{tbl}" DROP COLUMN IF EXISTS "#{col}"))
+    end
+
+    def remove_belongs_to(table : Symbol | String, name : Symbol | String,
+                          polymorphic : Bool = false, **opts) : Nil
+      remove_reference(table, name, polymorphic: polymorphic)
     end
 
     def add_foreign_key(from_table : Symbol | String, to_table : Symbol | String,
@@ -575,11 +629,11 @@ module ActiveRecord
       scale = opts[:scale]?
       limit = opts[:limit]?
       case type.to_s
-      when "string"   then limit ? "character varying(#{limit})" : "character varying"
-      when "text"     then "text"
-      when "integer"  then "integer"
-      when "bigint"   then "bigint"
-      when "float"    then "double precision"
+      when "string"  then limit ? "character varying(#{limit})" : "character varying"
+      when "text"    then "text"
+      when "integer" then "integer"
+      when "bigint"  then "bigint"
+      when "float"   then "double precision"
       when "decimal"
         if precision && scale
           "numeric(#{precision},#{scale})"
@@ -596,7 +650,7 @@ module ActiveRecord
       when "jsonb"    then "jsonb"
       when "uuid"     then "uuid"
       when "binary"   then "bytea"
-      else "text"
+      else                 "text"
       end
     end
 
@@ -620,15 +674,12 @@ module ActiveRecord
     end
 
     def singularize(word : String) : String
-      word.ends_with?("ies") ? word[0..-4] + "y" :
-        word.ends_with?("ses") ? word[0..-3] :
-        word.ends_with?('s') ? word[0..-2] : word
+      word.ends_with?("ies") ? word[0..-4] + "y" : word.ends_with?("ses") ? word[0..-3] : word.ends_with?('s') ? word[0..-2] : word
     end
 
     def pluralize(word : String) : String
       return word if word.ends_with?("ics", "es") && word != "address"
-      word.ends_with?('y') ? word[0..-2] + "ies" :
-        word.ends_with?("s", "x", "ch", "sh") ? word + "es" : word + "s"
+      word.ends_with?('y') ? word[0..-2] + "ies" : word.ends_with?("s", "x", "ch", "sh") ? word + "es" : word + "s"
     end
 
     def singularize_camel(word : String) : String

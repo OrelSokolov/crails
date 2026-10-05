@@ -20,6 +20,10 @@ active_support.cr/oracle/errors.log
 # --- артефакты спек/бенчей (Iteration 3+) ---
 action_pack.cr/action_pack_cr
 action_view.cr/action_view_cr
+active_record.cr/active_record_cr
+active_support.cr/active_support_cr
 bench/rails_hello/tmp/
 hello_world/hello/tmp/
+railties.cr/tmp/
+tmp/
 *.log

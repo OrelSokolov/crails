@@ -71,6 +71,20 @@ module CRails
         get "/", to: to, as: "root"
       end
 
+      # `resources :posts` — the seven RESTful routes Rails draws for a
+      # resource (used by `crails generate scaffold`).
+      def resources(name : String | Symbol) : Nil
+        name = name.to_s
+        get "/#{name}", to: "#{name}#index", as: name
+        get "/#{name}/new", to: "#{name}#new", as: "new_#{name.singularize}"
+        get "/#{name}/:id/edit", to: "#{name}#edit", as: "edit_#{name.singularize}"
+        get "/#{name}/:id", to: "#{name}#show", as: name.singularize
+        post "/#{name}", to: "#{name}#create"
+        patch "/#{name}/:id", to: "#{name}#update"
+        put "/#{name}/:id", to: "#{name}#update"
+        delete "/#{name}/:id", to: "#{name}#destroy"
+      end
+
       # `as` is a Crystal keyword, so the Rails-style `to:`/`as:` options
       # are read from **opts.
       {% for verb in %w(get post put patch delete) %}

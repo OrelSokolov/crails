@@ -9,6 +9,7 @@ require "./delegate"
 require "./notifications"
 require "./cache"
 require "./i18n"
+require "./message_verifier"
 
 module ActiveSupport
   VERSION = "0.1.0"

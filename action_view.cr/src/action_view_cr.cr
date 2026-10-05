@@ -14,6 +14,7 @@ require "./helpers/url_helper"
 require "./helpers/asset_tag_helper"
 require "./helpers/form_tag_helper"
 require "./helpers/form_helper"
+require "./helpers/record_identifier"
 
 module ActionView
   VERSION = "0.1.0"
@@ -38,5 +39,6 @@ module ActionView
     include AssetTagHelper
     include FormTagHelper
     include FormHelper
+    include RecordIdentifier
   end
 end

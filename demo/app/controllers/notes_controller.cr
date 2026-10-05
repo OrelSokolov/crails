@@ -34,6 +34,12 @@ class NotesController < ApplicationController
   def destroy
     note = Note.find(params["id"].to_s.to_i64)
     note.destroy
-    redirect_to("/notes", notice: "Заметка удалена")
+    @note = note
+    respond_to do |format|
+      # Turbo-браузер получит destroy.turbo_stream.erb (remove карточки);
+      # он же уходит всем подписанным страницам через /cable (broadcasts).
+      format.turbo_stream
+      format.html { redirect_to("/notes", notice: "Заметка удалена") }
+    end
   end
 end

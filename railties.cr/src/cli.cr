@@ -1,26 +1,97 @@
 require "./generator"
+require "./generators/base"
+require "./generators/fields"
+require "./generators/migration_builder"
+require "./generators/model_files"
+require "./generators/app_glue"
+require "./generators/migration_generator"
+require "./generators/model_generator"
+require "./generators/helper_generator"
+require "./generators/job_generator"
+require "./generators/mailer_generator"
+require "./generators/channel_generator"
+require "./generators/mailbox_generator"
+require "./generators/controller_generator"
+require "./generators/scaffold_generator"
 
 module CRails
   module CLI
+    GENERATORS = {
+      "channel"    => Generators::ChannelGenerator,
+      "controller" => Generators::ControllerGenerator,
+      "helper"     => Generators::HelperGenerator,
+      "job"        => Generators::JobGenerator,
+      "mailbox"    => Generators::MailboxGenerator,
+      "mailer"     => Generators::MailerGenerator,
+      "migration"  => Generators::MigrationGenerator,
+      "model"      => Generators::ModelGenerator,
+      "scaffold"   => Generators::ScaffoldGenerator,
+    }
+
+    GENERATOR_HELP = {
+      "channel"    => "Generate a new Action Cable channel (app/channels/)",
+      "controller" => "Generate a controller with views and a routes entry",
+      "helper"     => "Generate a helper module (app/helpers/)",
+      "job"        => "Generate an Active Job class (app/jobs/)",
+      "mailbox"    => "Generate an Action Mailbox class (app/mailboxes/)",
+      "mailer"     => "Generate a mailer with views (app/mailers/)",
+      "migration"  => "Generate a migration (db/migrate/)",
+      "model"      => "Generate a model with a migration, spec and fixture",
+      "scaffold"   => "Scaffold a full resource (model + RESTful controller + views + routes)",
+    }
+
     def self.run(argv : Array(String)) : Nil
       case argv[0]? || "help"
       when "new"       then Generators::App.run(argv[1]? || abort("Usage: crails new APP_PATH"))
       when "server", "s" then Server.run(argv[1..])
       when "console", "c" then Console.run(argv[1..])
       when "routes"    then Build.ensure_app; Build.build; run_app(["routes"])
+      when "middleware" then Build.ensure_app; Build.build; run_app(["middleware"])
       when "watch"     then Watch.run(argv[1..])
       when "db", .starts_with?("db:") then DB.run(argv)
       when "deploy"    then Deploy.run(argv[1..])
-      when "generate", "g"
-        case argv[1]?
-        when "bot" then Agent.generate(argv[2..])
-        else abort "Usage: crails generate bot NAME [--platform=telegram|whatsapp]"
-        end
+      when "generate", "g" then generate_cmd(argv[1..], :invoke)
+      when "destroy", "d"  then generate_cmd(argv[1..], :revoke)
       when "bot:poll" then Agent.poll(argv[1..])
       when "version", "--version", "-v" then puts "CRails #{CRails::VERSION} (Crystal #{Crystal::VERSION})"
       when "about"     then about
       else help
       end
+    end
+
+    private def self.generate_cmd(argv : Array(String), behavior : Symbol) : Nil
+      verb = behavior == :invoke ? "generate" : "destroy"
+      case argv[0]?
+      when nil, "--help", "-h" then return list_generators(verb)
+      when "bot"
+        return abort "Usage: crails generate bot NAME [--platform=telegram|whatsapp]" if behavior == :revoke
+        return Agent.generate(argv[1..])
+      end
+
+      klass = GENERATORS[argv[0]]?
+      return abort "Could not find generator #{argv[0]}. Run `crails generate` for a list." unless klass
+      if argv[1..].any? { |a| {"--help", "-h"}.includes?(a) }
+        gen = klass.new
+        puts gen.usage
+        puts
+        puts "  #{GENERATOR_HELP[argv[0]]}"
+        puts
+        puts "Options:"
+        puts "  [--force] [-f]   Overwrite existing files"
+        puts "  [--skip] [-s]    Skip existing files"
+        puts "  [--pretend] [-p] Run but do not write anything"
+        puts "  [--quiet] [-q]   Suppress status output"
+        return
+      end
+      klass.run(argv[1..], behavior)
+    end
+
+    private def self.list_generators(verb : String = "generate") : Nil
+      puts "Usage: crails #{verb} GENERATOR [args] [options]"
+      puts
+      puts "Please select a generator:"
+      puts "  bot"
+      GENERATORS.each_key { |name| puts "  #{name}" }
     end
 
     private def self.about : Nil
@@ -44,13 +115,15 @@ module CRails
         server, s      Build and run the app (-p PORT, -b HOST, -e ENV)
         console, c     Rails-console analog on icr.cr (loads app + DB)
         routes         Build (if needed) and list routes
+        middleware     List the middleware stack (rake middleware analog)
         watch          Rebuild + restart on source changes (dev loop)
         db:migrate     Run pending migrations (db/migrate/*.cr)
         db:rollback    Roll back the last migration (STEP=n)
         db:schema:dump Refresh db/schema.cr + db/schema.yml
         db:schema:load Recreate the database from db/schema.cr
-        generate bot   Embed a bot into this app: app/bots/ + webhook mount
-                       (crails generate bot Support --platform=telegram|whatsapp)
+        generate, g  Generate code: model controller scaffold migration mailer
+                     job channel mailbox helper bot (`crails g` lists them)
+        destroy, d   Undo a generator (`crails destroy model Post`)
         bot:poll     Build the app and run its bot poller role
                        (crails bot:poll telegram)
         deploy         Release-build + scp + migrate + zero-downtime restart
