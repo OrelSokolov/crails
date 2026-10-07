@@ -497,6 +497,10 @@ Iterations 0–6 и live_view (Iteration 8) с оракулами и бенча�
 Фаза 2 — продакшен-готовность (Iteration 7: PG-очереди/кэш/pubsub →
 observability → безопасность → supervision).
 
+Приходящим из Ruby: практические отличия семантики и типов
+(nilable-файндеры, type narrowing, кейворды vs Hash, виртуальные
+атрибуты) — в `SEMANTICS.md` в корне.
+
 ## License
 
 MIT (когда будет что лицензировать).

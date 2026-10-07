@@ -39,6 +39,10 @@ crystal run examples/datalake_read.cr
   `DATABASE_URL`, unix-сокеты (`host: "/var/run/postgresql"`),
   `schema_search_path=`, пул коннектов Rails-семантикой `pool:`
   (дефолт 5, держит до N соединений открытыми).
+- Отличия семантики и типов от Rails AR (nilable-файндеры нельзя
+  разворачивать в цепочку, persistence-методы принимают Hash, а не
+  кейворды, виртуальные атрибуты — только прямым сеттером):
+  `../SEMANTICS.md`.
 - Модели: `find/find?/find_by/find_by!`, `where` (String+args, hash,
   Range→BETWEEN, Array→IN, nil→IS NULL), `not`, `order` (Symbol/String/hash),
   `limit/offset/reverse_order`, `first/first!/last/take/sole`,
