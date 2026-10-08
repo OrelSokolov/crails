@@ -98,6 +98,50 @@ u.save
 её через `update({...})` нельзя — это цена compile-time кодогена по
 схеме.
 
+## 5. Value-union и `.as()`: где Ruby обходится duck-typing
+
+Результаты «полиморфных» методов AR — union-типы, и перед использованием
+их надо сузить:
+
+```crystal
+relation.count        # Int64 | Hash(Value, Int64)  — обычный и групповой
+relation.count.as(Int64) == 0                        # см. user.cr: ip_allowed?
+relation.pluck("id")  # Array(Value)
+relation.pick("email") # Value
+```
+
+`ActiveRecord::Value = Nil | Bool | Int64 | Float64 | String | Time |
+JSON::Any | ...` (active_record_cr.cr). В моделях то же самое с nullable-
+атрибутами: `last_ip_update_at.as(Time)` (user.cr), `st.as(Time) <= Time.utc`
+(activation_code.cr) — там, где Ruby написал бы просто `st <= Time.utc`.
+
+## 6. Stdlib Crystal, бьёт по рукам рубиста
+
+- **Деление**: Ruby `10 / 3 == 3`; Crystal `10 / 3 == 3.333...` (`Int#/`
+  возвращает Float64). Целочисленное — `10 // 3`. Тихий источник багов
+  при порте — компилятор не ловит.
+- **Переполнение и Int-размеры**: Ruby молча уходит в Bignum; Crystal
+  кидает `OverflowError`. Литерал `1` — `Int32`, id из БД — `Int64`;
+  рантаймовый `Int32` не конвертится неявно — нужен `.to_i64`.
+- **Строки неизменяемые**: `s << "x"` из Ruby не портируется —
+  `String.build { }`.
+- **`&.` не существует** — вместо него `.try` (с блоком).
+- **`h["key"]` / `a[10]` бросают** KeyError/IndexError, а не возвращают
+  nil, как в Ruby. Тихий вариант — `h["key"]?` и `a[10]?`. Тоже
+  рантайм-ловушка, не ошибка компиляции.
+- **Нет рантайм-рефлексии**: `send`, `respond_to?`, `method_missing`,
+  `define_method` — нет. Идиомы вроде `User.send(:find_by, ...)` не
+  портируются в принципе; метапрограммирование — compile-time макросами
+  (как кодоген атрибутов по db/schema.yml).
+
+## 7. Консоль (icr) — не irb
+
+- Каждая строка — перекомпиляция (~единицы секунд на вызов в большом
+  проекте), а не мгновенный ответ интерпретатора.
+- Состояние Ruby-объектов между строками не живёт как в irb — каждая
+  строка компилируется поверх реплея сессии; зато эффекты в БД
+  (`save`, `update_columns`) остаются.
+
 ---
 
 Общий принцип: семантика Rails сохраняется там, где это безопасно
