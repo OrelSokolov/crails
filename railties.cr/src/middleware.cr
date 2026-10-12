@@ -10,9 +10,14 @@
 # -> Middleware::ShowExceptions, Rack::Head -> Middleware::Head.
 # Cookies/Session/Flash stay controller-side (documented deviation:
 # no per-request env to preload jars into — they read the Cookie header
-# lazily and commit Set-Cookie directly). The remaining Rails entries
-# (HostAuthorization, Sendfile, Static, Executor, ServerTiming,
-# LocalCache, MethodOverride, RemoteIp, CSP, ConditionalGet, ETag,
+# lazily and commit Set-Cookie directly). Static has a counterpart:
+# Middleware::Static (port of ActionDispatch::Static, oracle
+# oracle/static_expected.yml; also serves vite-asset builds from
+# public/ with immutable caching). HostAuthorization/AssumeSSL/SSL have
+# counterparts in host_authorization.cr / ssl.cr (always in the stack,
+# config read at call time — see the deviation notes there). The
+# remaining Rails entries (Sendfile, Executor, ServerTiming,
+# LocalCache, MethodOverride, RemoteIp, ConditionalGet, ETag,
 # TempfileReaper, propshaft/reloader/AR-specific) have no CRails
 # counterpart yet — see ../PLAN.md.
 
@@ -240,6 +245,32 @@ module CRails
         CRails.logger.warn { "#{context.request.method} #{context.request.path} rate limited (429)" }
         context.response.status_code = 429
         context.response.headers["Content-Type"] = "text/html; charset=utf-8"
+      rescue ex : ActionController::MissingFile
+        # ActionController::MissingFile -> 404, как rescue_responses Rails
+        CRails.logger.info { "#{context.request.method} #{context.request.path} missing file (404)" }
+        context.response.status_code = 404
+        context.response.headers["Content-Type"] = "text/html; charset=UTF-8"
+        context.response.print NOT_FOUND_PAGE
+      rescue ex : ActionController::InvalidAuthenticityToken
+        # CSRF: ActionController::InvalidAuthenticityToken -> 422, как
+        # ShowExceptions в Rails (protect_from_forgery with: :exception).
+        CRails.logger.warn { "#{context.request.method} #{context.request.path} can't verify CSRF token authenticity (422)" }
+        context.response.status_code = 422
+        context.response.headers["Content-Type"] = "text/html; charset=utf-8"
+      rescue ex : ActionController::InvalidCrossOriginRequest
+        # Кросс-доменный <script src=...> на защищённый JS-ответ -> 422.
+        CRails.logger.warn { "#{context.request.method} #{context.request.path} cross-origin JavaScript blocked (422)" }
+        context.response.status_code = 422
+        context.response.headers["Content-Type"] = "text/html; charset=utf-8"
+      rescue ex : ActionController::TypedParams::Invalid
+        # TypedParams::Invalid -> 422 с телом ошибок в JSON (Iteration 10;
+        # отклонение от Rails: ActionController::ParameterMissing -> 400
+        # пустым телом, здесь типизированный API-контракт отвечает
+        # машиной ошибок — как rswag/dry-validation convention).
+        CRails.logger.info { "#{context.request.method} #{context.request.path} invalid params (422)" }
+        context.response.status_code = 422
+        context.response.headers["Content-Type"] = "application/json; charset=utf-8"
+        context.response.print ex.to_json
       rescue ex : Exception
         # ActiveRecord::RecordNotFound -> 404, like Rails' rescue ladder.
         # Matched by name: railties_cr compiles also in apps without
@@ -319,6 +350,15 @@ module CRails
 
       private def dispatch(context : HTTP::Server::Context, rid : String?, config : CRails::Config) : Nil
         match = @application.routes.match(request_method(context), context.request.path)
+        # Dev endpoints (/rails/mailers etc., registered by framework
+        # shards in CRails.dev_endpoints) — served only when the app
+        # itself has no route for the path and show_previews is on
+        # (development default; Rails: ActionMailer::Railtie routes).
+        if !match && config.show_previews? &&
+           (handler = CRails.dev_endpoint_for(context.request.path))
+          handler.call(context)
+          return
+        end
         unless match
           raise ActionController::RoutingError.new(
             "No route matches #{context.request.method} #{context.request.path}")
@@ -332,7 +372,7 @@ module CRails
           CRails.logger.info { Observability.log_processing(rid, match.route.controller, match.route.action, nil) }
         end
         controller = klass.new(context)
-        controller.__set_params(match.params)
+        controller.__set_params(match.params, match.route.controller, match.route.action)
         controller.__run_action(match.route.action)
       end
 

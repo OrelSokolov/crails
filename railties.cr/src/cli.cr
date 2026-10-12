@@ -46,8 +46,12 @@ module CRails
       when "server", "s" then Server.run(argv[1..])
       when "console", "c" then Console.run(argv[1..])
       when "routes"    then Build.ensure_app; Build.build; run_app(["routes"])
+      when "credentials:show", "credentials:edit" then
+        Build.ensure_app; Build.build; run_app(credentials_args(argv))
+      when "secret"    then puts Random::Secure.hex(64)
       when "middleware" then Build.ensure_app; Build.build; run_app(["middleware"])
       when "watch"     then Watch.run(argv[1..])
+      when "supervise" then Build.ensure_app; Build.build; Supervisor.run(argv[1..])
       when "db", .starts_with?("db:") then DB.run(argv)
       when "deploy"    then Deploy.run(argv[1..])
       when "generate", "g" then generate_cmd(argv[1..], :invoke)
@@ -117,6 +121,8 @@ module CRails
         routes         Build (if needed) and list routes
         middleware     List the middleware stack (rake middleware analog)
         watch          Rebuild + restart on source changes (dev loop)
+        supervise      Run all Procfile roles under a supervisor
+                       (web/worker/scheduler; restarts on crash, Ctrl-C stops all)
         db:migrate     Run pending migrations (db/migrate/*.cr)
         db:rollback    Roll back the last migration (STEP=n)
         db:schema:dump Refresh db/schema.cr + db/schema.yml
@@ -135,12 +141,34 @@ module CRails
     private def self.run_app(args : Array(String)) : Nil
       Process.exec("bin/app", args)
     end
+
+    # Проброс --environment/-e ENV в bin/app (гем: EnvironmentArgument;
+    # прочие опции CLI-оболочка не пропускает).
+    private def self.credentials_args(argv : Array(String)) : Array(String)
+      args = [argv[0]]
+      rest = argv[1..]
+      i = 0
+      while i < rest.size
+        case rest[i]
+        when "--environment", "-e"
+          args.concat(["--environment", rest[i + 1]]) if rest[i + 1]?
+          i += 2
+        when .starts_with?("--environment=")
+          args << rest[i]
+          i += 1
+        else
+          i += 1
+        end
+      end
+      args
+    end
   end
 end
 
 require "./build"
 require "./server"
 require "./watch"
+require "./supervisor"
 require "./console_cmd"
 require "./db_tasks"
 require "./deploy"

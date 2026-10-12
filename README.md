@@ -412,7 +412,31 @@ convention over configuration — всё это сохраняется. API 1:1 
 | Компоненты | связаны: мажор обновляет всё сразу, взять одно нельзя | независимы: солянка из любых выпущенных версий |
 | Ломающее изменение | оправдывается changelog'ом | невозможно: CI-матрица не выпустит релиз |
 | Остаться на старом | боль (гемы, безопасность, EOL) | валидный путь навсегда |
-| Производительность | потолок Ruby (интерпретатор, GVL, память) | Crystal: fiber'ы, один бинарь, 16 MB RSS |
+| Производительность | потолок Ruby (интерпретатор, GVL, память) | Crystal: fiber'ы, один бинарь — см. замер ниже |
+
+#### Производительность: базовая Hello-страница (без БД), head-to-head
+
+Два минимальных приложения — роут `/` → контроллер → `render plain: "Hello"`,
+никакой базы, шаблонов и ORM. Оба в production-режиме, одна машина,
+`wrk -t4 -c100 -d15s` после warm-up. CRails — `crystal build --release`
+(нативный бинарь 5.4 MB, полный стек middleware: request-id, secure headers,
+логирование). Rails 8.1.4 — дефолтный Puma 8.0.2 (1 процесс × 3 потока),
+Ruby 3.4.5. Воспроизведение: `~/crails_compare/bench.sh`, полный отчёт:
+`~/crails_compare/RESULTS.md`.
+
+| Метрика | CRails 0.1.0 (Crystal 1.21) | Rails 8.1.4 (Ruby 3.4.5) |
+|---|---|---|
+| **RPS** | **~50 000–52 000** | **~390–470** |
+| Latency (avg) | ~2 ms | 211–256 ms |
+| RSS idle | 11 MB | 99–100 MB |
+| RSS под нагрузкой (peak) | 17 MB | 101–102 MB |
+| Socket errors / non-2xx | 0 | 0 |
+
+Разгон больше чем **в 100 раз по RPS** при **в 6–9 раз меньшей памяти**
+(два независимых прогона, воспроизводимо). Rails упирается в 3 потока
+Puma по умолчанию: latency 200+ ms — это очередь на соединениях. Больше
+воркеров/потоков поднимут RPS, но ценой кратного роста RAM (~100 MB
+на процесс и так против 11–17 MB на всё приложение у CRails).
 
 ## Что это
 
@@ -463,8 +487,10 @@ convention over configuration — всё это сохраняется. API 1:1 
 | `active_job.cr/` | ActiveJob | **Iteration 4 ✅** perform_later/now, retry/discard, адаптеры |
 | `action_bot.cr/` | ActionBot (боты/агенты — не порт, дифференциатор) | **Iteration 16 P0 ✅** единый контракт сообщений + Telegram/WhatsApp адаптеры, вебхуки/поллер/SSE-стриминг, `crails generate bot` (оракул с telegram-bot-ruby 2.8.1; P1: conversations/Slack, P2: Brain-LLM) |
 | `active_storage.cr/` | ActiveStorage | P0 ✅ (Disk-сервис, Blob/Attachment, purge; P1: variants/S3/Mirror) |
+| `active_backup.cr/` | ActiveBackup (бэкапы БД/файлов — дифференциатор) | **Iteration 14 P0 ✅** tar.gz-архивы (GNU-tar-совместимый ustar), pg_dump -Fc / pg_restore, сторы-порт (Local/Memory), retention keep_last/keep_days, BackupJob через recurring; restore-тест в CI (18/18) |
 | `railties.cr/` | Railties + CLI `crails` | Iteration 0 + console (icr.cr) + `db:migrate/rollback/schema:dump/schema:load` |
 | `devise.cr/` | Devise (порт гема) | P0 ✅ (26/26 оракул + JWT-ротация; P1: recoverable/confirmable) |
+| `kiq.cr/` | Sidekiq → **Kiq** (порт гема, `Kiq`/`kiq_options`) + CLI `bin/kiq` | P0 ✅ (29/29 оракул с sidekiq 8.1.7, wire-совместимые пейлоады; ~26k jobs/s vs 1.4k у sidekiq; P2: Web UI) |
 | `live_view.cr/` | Phoenix LiveView (серверная часть) | Iteration 8 P0 ✅ (диффы, handle_event; P1: live_component/uploads) |
 | `hello_world/` | первая итерация — Hello World на CRails | ✅ работает |
 | `rails_hello/` | интеграционное приложение полного стека | ✅ HTTP-оракул 9/9 против Rails 8.1.4 |
@@ -489,7 +515,9 @@ rake spec       # все тест-сьюты шардов
 **Iteration 0 (Hello World) — ✅ сделана** (2026-10-02): `crails new` →
 `crails server` → `curl /` → 200; CLI `new/server/routes/watch`; цифры в
 `bench/results/000-hello.md` (hello RPS ~142k против Rails 8.1+Puma ~233,
-RSS 16 MB против 110 MB). Приложение: `hello_world/hello/` (сгенерировано
+RSS 16 MB против 110 MB; актуальный head-to-head с полным стеком
+production-middleware — в разделе «Сравнение» выше: ~50k против ~400–470 RPS,
+17 MB против 102 MB). Приложение: `hello_world/hello/` (сгенерировано
 `crails new`, пересоздаётся с нуля за ~2 s компиляции).
 
 Дальше — `PLAN.md` в корне: Фаза 1 (порт ядра) закрыта по P0 —

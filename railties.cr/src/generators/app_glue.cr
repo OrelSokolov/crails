@@ -146,6 +146,17 @@ module CRails
         "action_mailbox_cr" => {"action_mailbox.cr", "active_storage.cr"},
       }
 
+      # Extra glue beyond the bare require: the mailers previews UI
+      # (/rails/mailers, the analog of ActionMailer::Railtie's routes —
+      # railties_cr does not depend on action_mailer_cr, so the endpoint
+      # self-registers in CRails.dev_endpoints). Preview classes live in
+      # spec/mailers/previews/ (glob require is a no-op until created).
+      SNIPPETS = {
+        "action_mailer_cr" => %(require "action_mailer_cr"
+require "../spec/mailers/previews/**"
+CRails.dev_endpoints["/rails/mailers"] = ->(ctx : HTTP::Server::Context) { ActionMailer::PreviewServer.serve?(ctx) }),
+      }
+
       def self.ensure_shard(gen : Base, shard : String) : Nil
         return unless deps = SHARDS[shard]?
 
@@ -169,7 +180,7 @@ module CRails
         path = File.join("src", "app.cr")
         return unless File.exists?(path)
         src = File.read(path)
-        req = %(require "#{shard}")
+        req = SNIPPETS[shard]? || %(require "#{shard}")
         return if src.includes?(req)
         anchor = %(require "railties_cr"\n)
         return unless src.includes?(anchor)

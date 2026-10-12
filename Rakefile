@@ -17,14 +17,16 @@ SHARDS = %w[
   action_pack.cr
   active_record.cr
   active_agent.cr
+  active_backup.cr
   action_bot.cr
+  kiq.cr
   railties.cr
 ]
 
 task default: :build
 
 desc "Build everything: deps, crails CLI, shard binaries, demo app"
-task build: %i[deps build:cli build:app]
+task build: %i[deps build:cli build:app build:kiq]
 
 desc "Install shard dependencies (idempotent)"
 task :deps do
@@ -49,6 +51,13 @@ desc "Build the demo app server (hello_world/hello/bin/app)"
 task :"build:app" do
   Dir.chdir(APP) do
     sh "crystal build src/app.cr -o bin/app"
+  end
+end
+
+desc "Build the kiq worker CLI (kiq.cr/bin/kiq)"
+task :"build:kiq" do
+  Dir.chdir(File.join(ROOT, "kiq.cr")) do
+    sh "shards build kiq"
   end
 end
 

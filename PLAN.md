@@ -152,14 +152,119 @@ Views/AR/GC, /up без ETag/Cache-Control; JSON-лог и /metrics — расш
       остаются controller-side — documented deviation; бенч
       `results/501-middleware.md` −3% RPS). Осталось: сами
       secure headers/CSP-мiddleware поверх стека
+- [~] CSRF-защита (2026-10-05): порт
+      `ActionController::RequestForgeryProtection` 8.1.4 —
+      `protect_from_forgery with: :exception/:null_session/:reset_session`
+      (+`only:/except:`, `skip_forgery_protection`), токены wire-1:1
+      (BREACH-маска pad-XOR, глобальный HMAC-SHA256 "!real_csrf_token",
+      per-form HMAC "#{path}##{method}", param или X-CSRF-Token,
+      Crypto::Subtle fixed-length), origin-проверка
+      (`forgery_protection_origin_check`), JS-ответы не-XHR GET →
+      `InvalidCrossOriginRequest`; обе ошибки → 422 в лестнице
+      ShowExceptions; `form_with`/`form_tag` вставляют hidden-токен,
+      `csrf_meta_tags`; генератор включает защиту в
+      ApplicationController + meta-теги в layout. Оракул 28 кейсов с
+      настоящего actionpack 8.1.4 (`action_pack.cr/oracle/csrf_cases.rb`,
+      bare-стек Cookies/CacheStore/Flash/ShowExceptions, реальные
+      cookie-jar'ы, DETERMINISTIC) — зеркало
+      `railties.cr/spec/csrf_spec.cr` 28/28; E2E `crails new`: POST без
+      токена 422, с X-CSRF-Token из meta 200. По пути чинены латентные
+      баги: неработавший `skip_before_action` (интерполяция символа в
+      FILTERS не разрешалась) и cookie round-trip сессии (write
+      кодировал encode_www_form, read не декодировал). Отклонения:
+      конфиг глобальный (config.action_controller.*-стиль), form_options
+      — именованные аргументы action:/method:, кастомные strategy-
+      классы и `store: :cookie` — P2
 - [ ] sandboxed миграции
 - [ ] `crails check` (пассивный анализ в духе Brakeman)
+
+### Iteration 13 — Vite-интеграция (P0 готов, 2026-10-05)
+Модель vite_rails: Vite остаётся npm-инструментом, Crystal — manifest +
+хелперы + раздача. P0 закрывает production-флоу qp2 (vite build →
+манифест → рендер → отдача ассетов):
+- [x] `ViteRuby::Manifest` + `ViteHelper` в action_view.cr — оракул
+      15 кейсов с настоящих vite_rails 3.0.19 / vite_ruby 3.9.2
+      (`action_view.cr/oracle/vite_cases.rb` → `vite_expected.yml`,
+      версии — из Gemfile.lock qp2; bare ActionView-контекст +
+      фикстура-манифест формата vite 5/6), зеркало
+      `action_view.cr/spec/vite_spec.cr` 15/15. Хелперы:
+      `vite_asset_path`, `vite_javascript_tag` (script-ESM +
+      modulepreload импортов + stylesheet css-чанков),
+      `vite_stylesheet_tag`, `vite_image_tag`; байты вывода байт-в-байт
+      (включая смешанные стили: modulepreload без `/`, stylesheet со
+      слэшем). Отклонения: dev-server/HMR — P1, config/vite.json не
+      парсится (class-свойства + env CRAILS_VITE_MANIFEST), type: —
+      String вместо Symbol
+- [x] `CRails::Middleware::Static` (порт ActionDispatch::Static 8.1.4)
+      в railties.cr — оракул 14 кейсов с настоящего actionpack
+      (`oracle/static_cases.rb` → `static_expected.yml`: GET/HEAD,
+      кандидаты path/.html/index.html, CT по расширению, прекомпрессия
+      br/gz по Accept-Encoding + Vary, traversal-блок, pass-through,
+      HEAD без тела), зеркало `spec/static_spec.cr` 14/14. Включён
+      первым в дефолтный стек; CRails-дефолт: `/vite/assets/*` →
+      `Cache-Control: immutable` (хешированные имена, crails заменяет
+      Thruster/CDN). Отклонения: Range/304 — P2. E2E: demo-приложение
+      раздаёт public/turbo.js → 200 text/javascript через дефолтный
+      стек
+- [~] P1: dev-прокси на vite-сервер ✅ (2026-10-05):
+      `CRails::Middleware::ViteDevProxy` (railties.cr/src/vite_dev.cr,
+      реф ViteRuby::DevServerProxy vite_ruby 3.9.2) — в дефолтном стеке
+      только в dev (`CRails.env.development?`/`CRAILS_VITE_DEV=1`), до
+      Static; проксирует /@vite,/@id,/@fs,/@react-refresh,/src,
+      /node_modules,/vite/ на CRAILS_VITE_HOST:PORT (127.0.0.1:5173),
+      Host-rewrite + X-Forwarded-*; ws-upgrade с
+      Sec-WebSocket-Protocol: vite-hmr сплайсится с TCP-сокетом vite
+      (CRails-расширение — Rack::Proxy upgrade не умеет); vite недоступен
+      → pass-through. Dev-теги action_view: `vite_client_tag`
+      (/vite/@vite/client), `vite_react_refresh_tag` (CDATA-преамбула),
+      entrypoints в dev без манифеста — оракул 13 кейсов с настоящих
+      vite_rails 3.0.19/vite_ruby 3.9.2 (`action_view.cr/oracle/
+      vite_dev_cases.rb` → `vite_dev_expected.yml`), зеркало
+      `spec/vite_spec.cr`; транспорт — `railties.cr/spec/vite_dev_spec.cr`
+      (фейковый vite HTTP+WS, 10/10). Осталось: `crails dev`
+      (supervisor двух процессов; задел Iteration 15); ~~P2: генератор
+      `crails new --vite` + importmap-режим~~ → importmap-режим закрыт
+      Iteration 17 (importmap.cr), `--vite`-флаг остаётся P2
+
+### Iteration 14 — send_file/send_data (✅ 2026-10-05)
+Порт `ActionController::DataStreaming` + `ActionDispatch::Http::
+ContentDisposition` (actionpack 8.1.4). Oracle-first: оракул 12 кейсов
+с настоящего actionpack (`action_pack.cr/oracle/data_streaming_cases.rb`
+→ `data_streaming_expected.yml`: дефолты, вывод CT по расширению,
+двойной Content-Disposition с percent-escape — включая не-ASCII имена
+(`%3F`-замена как в bare-геме), disposition nil, url_based_filename,
+inline+status, MissingFile), зеркало
+`railties.cr/spec/data_streaming_spec.cr` 13/13.
+- [x] `send_data(data, filename:, type:, disposition:, status:,
+      content_type:)` + `send_file(path, ..., url_based_filename:)`:
+      CT без charset, Content-Transfer-Encoding: binary, стрим файла
+- [x] `ActionController::MissingFile` → 404 в railties-лестнице
+      (аналог rescue_responses Rails)
+- [x] отклонения: Range для send_file — P2; MIME-вывод — подмножество
+      Rack::Mime; `type:` — String (Symbol-алиасы — P2). Сюиты:
+      railties 151/151, action_pack 54/54, action_view 124/124
 
 ### Iteration 15 — supervision (доступность без BEAM)
 - [ ] роли бинарника: `crails server|worker|scheduler|supervise`
       (веб никогда не исполняет джобы в проде)
 - [ ] супервизор: N×web + M×worker, backoff-перезапуск, memory watchdog
 - [ ] bench отказов: `kill -9` воркера/веба, retry джобы, RSS-лимит
+
+### Iteration 17 — importmap.cr (✅ 2026-10-05)
+Порт `importmap-rails` 2.2.3 (отдельная шарда `importmap.cr/`):
+`pin`/`pin_all_from` + importmap-теги. Oracle-first по AGENTS.md:
+оракул 21 кейс с настоящего гема (`importmap.cr/oracle/importmap_cases.rb`
+→ `importmap_expected.yml`: pin с `to:`/`preload:`/CDN-урл, pin_all_from
+`under:`/`to:` c index-чомпингом, pretty-JSON, preloaded-пути с
+entrypoint-фильтрацией, digest, полный стек тегов), зеркало
+`spec/importmap_spec.cr` 17/17, байты — байт-в-байт. Интеграция:
+хелперы в `ActionController::Base`, `/javascripts/*` из `app/javascript`
+через `Middleware::Static`, `crails new` генерирует `config/importmap.cr`
++ layout с `javascript_importmap_tags`. Закрывает «importmap-режим» из
+P2 Iteration 13. Quirk'и гема сохранены (glob без `.mjs`, кэш
+`cache_key`). Отклонения: packager (jsDelivr) и SRI — P2, file-`draw`
+→ block-DSL. Бенч `bench/results/204-importmap.md` (~11.6× на рендере
+тегов). См. importmap.cr/PLAN.md.
 
 ## Фаза 3 — дифференциаторы (после продакшен-релиза)
 
@@ -236,24 +341,129 @@ Views/AR/GC, /up без ETag/Cache-Control; JSON-лог и /metrics — расш
       12.7–18.5M deliveries/s). Отклонения: renderer-seam вместо
       ApplicationController.render, kwargs → named args (turbo.cr/
       PLAN.md).
-- [ ] **Iteration 18** — action_mcp.cr: приложение становится
-      MCP-сервером (Streamable HTTP `/mcp`, JSON-RPC 2.0:
-      initialize/tools list/call) — экспонирует те же
-      `ActiveAgent::Tool` наружу. Монетизация по ключам: API/service
-      токены (JWT-ротация, Iteration 6) + квоты (rate limiting,
-      Iteration 12) + учёт вызовов → биллинг recurring-джобой; скоупы
-      read/write на ключ, аудит каждого tools/call. Бонус: агент как
-      MCP-инструмент (продажа доступа к AI-оператору). MCP-клиент
-      (consuming, `McpToolSource`) остаётся в active_agent P2 —
-      exposing и consuming в разных шардах, общий знаменатель —
-      контракт Tool.
-- [ ] **Iteration 9** — streaming-first: SSE/chunked из блока/джобы,
-      backpressure, отмена fiber'а при disconnect
-- [ ] **Iteration 10** — type-safe params + OpenAPI compile-time codegen
+- [x] **Iteration 20** — kiq.cr ✅ (2026-10-05): порт Sidekiq 8.1.7 →
+      `Kiq` (`include Kiq::Job`, `kiq_options`, `perform_async/in/at/
+      bulk/inline`, `set(...)`, Client/push_bulk, Launcher с fiber-
+      воркерами и scheduled-poller, retry-математика count⁴+15+jitter,
+      morgue/dead-set, `Kiq::Queue/Stats/ScheduledSet/RetrySet/
+      DeadSet`, middleware-цепочки client/server, `Kiq::Testing`
+      fake!/inline!/disable!, ActiveJob-адаптер `ActiveJob::KiqAdapter`).
+      Wire-совместим с настоящим sidekiq: те же ключи Redis
+      (queue:*/queues/schedule/retry/dead/stat:*), пейлоад с
+      epoch-ms и jid-hex-24 — джобу ставит sidekiq-клиент, выполняет
+      Kiq, и наоборот (фикс-пейлоад в spec/unit_spec.cr). Oracle-first
+      по AGENTS.md: `kiq.cr/oracle/cases.rb` — 29 кейсов с настоящего
+      sidekiq 8.1.7 (Ruby 3.4.5 + Redis DB 15, DETERMINISTIC повторным
+      прогоном), зеркало `spec/oracle_spec.cr` 29/29 без правок кейсов;
+      + юниты 7/7 (interop, weighted queues, graceful stop, AJ-адаптер,
+      Testing) — сюита 36/36. Bench `results/203-kiq.md`: ~26k jobs/s
+      конец-в-конец (8 воркеров, один процесс, RSS ~10 MB) vs sidekiq
+      8.1 ~1.4k (из 201). Отклонения задокументированы в kiq.cr/PLAN.md
+      (compile-time registry классов джоб, RuntimeError-маппинг для
+      `raise "str"`, poller без Lua, middleware-инстансы вместо классов).
+      P2: capsules, процессный heartbeat. Web UI готов (Iteration:
+      `Kiq::Web` — порт Sidekiq::Web 8.1.7, оракул 94/94 маркера).
+      CLI-бинарник `kiq` (`src/kiq_cli.cr`, `rake build:kiq`): флаги
+      sidekiq-стиля (-c/-q[,weight]/-t/-v/-V), TERM/INT graceful +
+      TSTP quiet, boot-ping Redis, retry-цикл при потере соединения;
+      джобы запекаются сборкой (`KIQ_REQUIRE=... shards build kiq` —
+      runtime `-r` в Crystal невозможен). CLI-спек гоняет бинарник
+      end-to-end (активен после сборки bin/kiq); ручной E2E: baked-job
+      выполняется, TSTP останавливает выборку, TERM → exit 0 + flush
+      статистики.
+- [x] **Iteration 18** — action_mcp.cr ✅ (2026-10-06): приложение
+      становится MCP-сервером — порт wire-поведения официального Ruby
+      SDK `mcp` 1.7.0 (вендорен в oracle/vendor): Streamable HTTP
+      `/mcp` stateless+JSON (POST JSON-RPC 2.0: initialize с
+      negotiation/ ping / tools list / call / resources-prompts стабы;
+      нотификации → 202; parse/batch/Accept/CT/GET/DELETE гварды).
+      Oracle 28 кейсов (Rack::MockRequest против настоящего
+      StreamableHTTPTransport) → expected.yml; зеркало 28/28
+      байт-в-байт через ServerController. Экспорт `ActiveAgent::Tool`
+      (`tools`-макрос, compile-time диспетчер) + `agent(SupportAgent,
+      "...")` — агент как MCP-инструмент (wrapper-тул, `.ask`).
+      Монетизация: `ActionMCP.authenticate` (Bearer → ApiKey со
+      скоупами read/write через `ActionMCP.mcp_scope` в теле тула,
+      403 -32002), квоты Cache#increment фиксированным окном (429
+      -32003), учёт `mcp:usage:<identity>` для биллинговой
+      recurring-джобы, аудит `mcp.tools_call` (Notifications).
+      Сюита 41/41; соседи зелёные (active_agent 21, action_pack 153,
+      railties 309). По пути: латентный баг `Tool#input` (пустые поля —
+      `[ ]` без типа) и re-feed raw body в `__merge_body_params`
+      (action_pack). MCP-клиент (consuming, McpToolSource) остаётся в
+      active_agent P2 — exposing и consuming в разных шардах, общий
+      знаменатель — контракт Tool. Отклонения: только stable
+      legacy-lifecycle (без SSE/сессий/modern envelope), гейтвей —
+      CRails-расширение. Детали: action_mcp.cr/PLAN.md
+- [~] **Iteration 9** — streaming-first ✅ (2026-10-06): порт
+      `ActionController::Live` 8.1.4 (`action_pack.cr/src/live.cr`) —
+      chunked/SSE-стриминг с backpressure (буфер 10, SizedQueue-семантика
+      на Sync-примитивах) и отменой fiber'а экшена при disconnect
+      (ClientDisconnected у заблокированного и следующего write).
+      Oracle-first: `oracle/live_cases.rb` → `live_expected.yml` (28
+      кейсов с настоящего actionpack 8.1.4 + puma 6.6.1: SSE-wire
+      байт-в-байт, Buffer-семантика, транспорт — chunked-фрейминг,
+      send_stream, ошибки до/после commit, HTTP/1.0, disconnect),
+      зеркало `railties.cr/spec/live_spec.cr` 28/28 (полный стек за
+      реальным HTTP::Server, сырые сокеты). Экшен — в отдельном
+      fiber'е, pump в запросном; SSE/send_stream/`response.stream`;
+      implicit render пропускается после коммита стрима. Bench
+      `results/402-sse.md` (bench/crails_sse + rails_sse): SSE-fanout
+      ~482–622k events/s vs Rails+Puma 31–41k (~15×), chunked
+      ~710–887k/s vs ~115k, first-token 1.16 vs 1.97 мс, storm 200
+      disconnects → отмена за 120 мс / RSS 22 МБ (1000 → 264 мс).
+      Отклонения — в шапке src/live.cr
+- [x] **Iteration 10** — type-safe params + OpenAPI compile-time codegen ✅
+      (2026-10-06): `ActionController::TypedParams` (action_pack.cr,
+      `src/typed_params.cr`) — DSL `typed_params(:create) do
+      required :title, String, min_size: 3 ... end` генерирует класс
+      с типизированными геттерами (compile-checked) + хелпер
+      `<action>_params`; семантика 1:1 с dry-schema 1.13.4 (оракул
+      42 кейса `oracle/typed_params_cases.rb` → expected.yml: verdict,
+      коарсинг dry-types Params, дерево ошибок, output; зеркало
+      42/42 без правок кейсов); `TypedParams::Invalid` → 422 JSON в
+      railties-лестнице (E2E 4/4). OpenAPI-кодген (`src/openapi.cr`):
+      документ 3.0.3 из роутов + compile-time реестра схем (path
+      params, requestBody JSON Schema для POST/PATCH/PUT, query для
+      GET), реверс-валидация настоящим openapi3_parser 0.10.1
+      (`oracle/verify_openapi.rb`), раздача встроенным контроллером —
+      `openapi "/openapi.json"` одной строкой в drawer'е. Бенч
+      `results/205-typed-params.md`: ~30× vs dry-schema (887k vs 30k
+      ops/s), ~11.6× vs Ruby-permit, внутри Crystal ~0.58× от
+      нетипизированного permit. Отклонения — action_pack.cr/PLAN.md
+      (Iteration 10). P2: TS-клиент из документа (ECOSYSTEM api-only
+      bootstrap), формы `a[b]` в query-схеме
 - [ ] **Iteration 13** — DX: hot-reload шаблонов/i18n без рекомпиляции,
       `crails watch` (rebuild + zero-downtime), error pages
-- [ ] **Iteration 14** — active_backup.cr: бэкапы БД/файлов, сторы,
+- [~] **Iteration 14** — active_backup.cr: бэкапы БД/файлов, сторы,
       retention через recurring jobs, restore-тест в CI
+      **P0 готов (2026-10-06)**: дифференциатор (не порт гема).
+      Архив = один .tar.gz (свой ustar writer/reader, двусторонний
+      оракул с системным GNU tar: наши архивы читает `tar -tzf/-xzf`,
+      наш Reader — фикс-архив oracle/fixtures/gnu.tar); db.dump —
+      настоящий pg_dump -Fc, restore — настоящий pg_restore (Debian
+      multi-version: бинари пиннятся под мажор сервера через
+      /usr/lib/postgresql/<ver>/bin — иначе pg_dump 17 к серверу 16
+      даёт нечитаемый формат 1.16 / SET transaction_timeout);
+      files/<name>/... — деревья каталогов; manifest.json пишется
+      последним (обрезанный архив не парсится), sha256 каждого члена,
+      сверка при restore (порча байта → CorruptBackupError). Сторы —
+      узкий порт `ActiveBackup::Store` (module-interface): LocalStore,
+      MemoryStore (S3 — P1). RetentionPolicy keep_last/keep_days
+      (новейший не удаляется никогда, бэкапы без времени — тоже);
+      retention применяется после каждого create и в prune().
+      Recurring: `ActiveBackup::BackupJob < ActiveJob::Base`
+      (perform = create + prune), регистрируется RecurringTask-ом в
+      шедулере приложения; события create/restore.active_backup.
+      Restore-тест в CI (spec/restore_spec.cr): сидинг PG (bytea,
+      unicode, timestamptz, массивы) + файлов (вложенность, бинарники,
+      unicode-имена) → create → tar -tzf → DROP DATABASE + rm -rf →
+      restore → побайтовая сверка БД и файлов; повторный restore с
+      clean: true. Сюита 18/18 (скипы без PG/tar). По пути обойдён баг
+      codegen Crystal 1.21 (вложенные yield-блоки в месте вызова —
+      copy-with-hash вынесен в метод). Отклонения: symlink/PAX — P2,
+      инкрементальные/шифрование — P2, crails backup:* CLI — P1.
+      Детали: active_backup.cr/PLAN.md
 
 ## Backlog идей — Clean Rails / дядя Боб (вклеивать по мере итераций)
 

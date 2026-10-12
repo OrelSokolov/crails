@@ -1,8 +1,0 @@
-Gemfile.lock
-
-.bundle/
-.env
-/.claude/*.local.json
-pkg/
-tmp/
-vendor/bundle/

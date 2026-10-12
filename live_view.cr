@@ -1,0 +1,1 @@
+../myshards/live_view.cr

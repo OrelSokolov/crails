@@ -1,8 +1,0 @@
-data: {"id":"chatcmpl-abc125","object":"chat.completion.chunk","created":1760000002,"model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":"Прив"},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-abc125","object":"chat.completion.chunk","created":1760000002,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":"ет завтра."},"finish_reason":null}]}
-
-data: {"id":"chatcmpl-abc125","object":"chat.completion.chunk","created":1760000002,"model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":50,"completion_tokens":5,"total_tokens":55}}
-
-data: [DONE]
-

@@ -1,4 +1,5 @@
 require "file_utils"
+require "random/secure"
 
 module CRails
   module Generators
@@ -24,8 +25,9 @@ module CRails
 
         puts "      create  #{@path}"
         dirs = [
-          "src", "config/environments", "app/controllers", "app/models",
-          "app/views/layouts", "app/views/welcome", "db", "public", "bin", "lib",
+          "src", "config/environments", "config/initializers", "app/controllers", "app/models",
+          "app/views/layouts", "app/views/welcome", "app/javascript",
+          "db", "public", "bin", "lib",
         ]
         dirs.each { |d| FileUtils.mkdir_p(File.join(dir, d)) }
 
@@ -34,7 +36,7 @@ module CRails
         # as ambiguous sources, so the app's shard.yml stays free of
         # framework dependencies.
         {"active_support.cr", "action_view.cr", "action_pack.cr",
-         "active_record.cr", "railties.cr"}.each do |shard|
+         "active_record.cr", "railties.cr", "importmap.cr"}.each do |shard|
           target = File.join(dir, "lib", shard.gsub('.', "_"))
           # The symlink lives inside lib/, one level deeper than the app root.
           link_target = File.join(rel, "..", shard)
@@ -56,7 +58,9 @@ module CRails
         write(dir, "src/app.cr", app_cr)
         write(dir, "src/console.cr", console_cr)
         write(dir, "config/application.cr", application_cr)
+        write(dir, "config/initializers/content_security_policy.cr", content_security_policy_cr)
         write(dir, "config/routes.cr", routes_cr)
+        write(dir, "config/importmap.cr", importmap_cr)
         write(dir, "config/database.yml", database_yml)
         write(dir, "config/environments/development.cr", development_cr)
         write(dir, "config/environments/production.cr", production_cr)
@@ -65,8 +69,11 @@ module CRails
         write(dir, "app/models/application_record.cr", application_record_cr)
         write(dir, "app/views/layouts/application.html.erb", layout_erb)
         write(dir, "app/views/welcome/index.html.erb", index_erb)
+        write(dir, "app/javascript/application.js", application_js)
         write(dir, "public/.gitkeep", "")
         write(dir, ".gitignore", gitignore)
+        write(dir, "Procfile", procfile)
+        write_master_key_and_credentials(dir)
         write(dir, "README.md", readme)
         write(dir, "bin/crails", bin_crails(exe))
         File.chmod(File.join(dir, "bin/crails"), 0o755)
@@ -101,6 +108,7 @@ module CRails
         require "railties_cr"
 
         require "../config/application"
+        require "../config/importmap"
         require "../app/controllers/**"
         require "../config/routes"
         require "../config/environments/development"
@@ -111,6 +119,24 @@ module CRails
         CODE
       end
 
+      private def importmap_cr : String
+        <<-CODE
+        # Pin your JavaScript modules (importmap-rails port, see
+        # importmap.cr/PLAN.md). Paths resolve against app/javascript,
+        # served at /javascripts/*.
+        Importmap.map.draw do |map|
+          map.pin "application"
+        end
+        CODE
+      end
+
+      private def application_js : String
+        <<-JS
+        // Entry point pinned in config/importmap.cr.
+        // Add real modules next to this file and pin them there.
+        JS
+      end
+
       private def application_cr : String
         <<-CODE
         class Application < CRails::Application
@@ -119,6 +145,40 @@ module CRails
         end
 
         CRails.application = Application.new
+        CODE
+      end
+
+      # Procfile — роли процессов (crails supervise / foreman-совместимый).
+      # worker/scheduler — хуки CRails.application.worker/scheduler;
+      # роли, не скомпилированные в bin/app, supervise просто отключает.
+      private def procfile : String
+        <<-TEXT
+        web: bin/app serve
+        worker: bin/app worker
+        scheduler: bin/app scheduler
+        TEXT
+      end
+
+      # config/initializers/content_security_policy.cr — как rails new
+      # (закомментированный DSL; раскомментируйте, чтобы включить CSP).
+      private def content_security_policy_cr : String
+        <<-CODE
+        # Be sure to restart your server when you modify this file.
+        #
+        # Define an application-wide content security policy.
+        # See the Securing Rails Applications Guide for more information:
+        # https://guides.rubyonrails.org/security.html#content-security-policy-header
+
+        # CRails.application.config.content_security_policy do |policy|
+        #   policy.default_src :self, :https
+        #   policy.font_src    :self, :https, :data
+        #   policy.img_src     :self, :https, :data
+        #   policy.object_src  :none
+        #   policy.script_src  :self, :https
+        #   policy.style_src   :self, :https
+        #   # Specify URI for violation reports
+        #   policy.report_uri "/csp-violation-report-endpoint"
+        # end
         CODE
       end
 
@@ -164,6 +224,9 @@ module CRails
         # Loaded when CRails.env == "development"
         if CRails.env.development?
           CRails.application.config.port = 3000
+          # Allow requests to additional hosts (.localhost/.test and any
+          # IP are allowed in development by default).
+          # CRails.application.config.hosts += ["myapp.example.com"]
         end
         CODE
       end
@@ -173,6 +236,12 @@ module CRails
         # Loaded when CRails.env == "production"
         if CRails.env.production?
           CRails.application.config.host = "0.0.0.0"
+          # Force all access to the app over SSL, use Strict-Transport-
+          # Security, and use secure cookies (ActionDispatch::SSL port).
+          # CRails.application.config.force_ssl = true
+          # Whitelist request hosts (ActionDispatch::HostAuthorization
+          # port; empty = allow all).
+          # CRails.application.config.hosts = ["example.com"]
         end
         CODE
       end
@@ -180,7 +249,10 @@ module CRails
       private def application_controller_cr : String
         <<-CODE
         abstract class ApplicationController < ActionController::Base
-          # before_action and friends arrive with the full action_pack port.
+          # CSRF-защита по умолчанию, как в Rails: POST/PUT/PATCH/DELETE
+          # без валидного authenticity_token -> 422. Отключить точечно:
+          #   skip_forgery_protection (или except: в protect_from_forgery)
+          protect_from_forgery with: :exception
         end
         CODE
       end
@@ -232,6 +304,8 @@ module CRails
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>CRails</title>
+            <%= csrf_meta_tags %>
+            <%= javascript_importmap_tags %>
           </head>
           <body>
             <%= yield %>
@@ -363,7 +437,32 @@ module CRails
         /lib/
         /bin/app
         /.shards/
+        /config/master.key
         TEXT
+      end
+
+      # Rails 8 `rails new`: config/master.key (hex16, aes-128) +
+      # зашифрованный credentials.yml.enc c secret_key_base (hex64).
+      private def write_master_key_and_credentials(dir : String) : Nil
+        key_path = File.join(dir, "config", "master.key")
+        content_path = File.join(dir, "config", "credentials.yml.enc")
+        key = Random::Secure.hex(16)
+        FileUtils.mkdir_p(File.dirname(key_path))
+        File.write(key_path, key)
+        File.chmod(key_path, 0o600)
+        template = <<-YAML
+        # aws:
+        #   access_key_id: 123
+        #   secret_access_key: 345
+
+        # used as the base secret for all MessageVerifiers in CRails, including the one protecting cookies
+        secret_key_base: #{Random::Secure.hex(64)}
+        YAML
+        config = CRails::EncryptedConfiguration.new(
+          content_path: content_path, key_path: key_path)
+        config.write(template)
+        puts "      create  config/master.key"
+        puts "      create  config/credentials.yml.enc"
       end
 
       private def readme : String

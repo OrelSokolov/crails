@@ -229,22 +229,46 @@ describe "middleware stack (rails 8.1.4 oracle)" do
   it "crails default stack" do
     # (deviation) the CRails default stack covers the Rails 8.1 entries
     # that have a counterpart — see middleware.cr header for the mapping.
-    mw_names(CRails::Application.new.config.middleware).should eq(
-      "CRails::Middleware::RequestId," \
-      "CRails::Middleware::RequestLogger," \
-      "CRails::Middleware::ShowExceptions," \
-      "CRails::Middleware::Head")
+    # In dev mode ViteDevProxy is prepended (CRails extension, see
+    # vite_dev.cr; Rails has no counterpart — vite_ruby mounts a
+    # Rack::Proxy in dev only).
+    expected = [] of String
+    # HostAuthorization/AssumeSSL/SSL are always in the CRails stack and
+    # read config.hosts/assume_ssl/force_ssl at call time (Rails inserts
+    # them conditionally at boot — documented deviation).
+    expected.concat(["CRails::Middleware::HostAuthorization",
+                     "CRails::Middleware::AssumeSSL",
+                     "CRails::Middleware::SSL"])
+    if CRails.env.development? || ENV["CRAILS_VITE_DEV"]? == "1"
+      expected << "CRails::Middleware::ViteDevProxy"
+    end
+    expected.concat(["CRails::Middleware::Static",
+                     "CRails::Middleware::RequestId",
+                     "CRails::Middleware::RequestLogger",
+                     "CRails::Middleware::ContentSecurityPolicy",
+                     "CRails::Middleware::ShowExceptions",
+                     "CRails::Middleware::Head"])
+    mw_names(CRails::Application.new.config.middleware).should eq(expected.join(","))
   end
 
   it "print_middleware output (rake middleware analog)" do
     io = IO::Memory.new
     MW_APP.print_middleware(io)
-    io.to_s.lines.map(&.chomp).should eq(
-      ["use OracleHeaderMiddleware",
-       "use CRails::Middleware::RequestId",
-       "use CRails::Middleware::RequestLogger",
-       "use CRails::Middleware::ShowExceptions",
-       "use CRails::Middleware::Head"])
+    expected = [] of String
+    expected.concat(["use CRails::Middleware::HostAuthorization",
+                     "use CRails::Middleware::AssumeSSL",
+                     "use CRails::Middleware::SSL"])
+    if CRails.env.development? || ENV["CRAILS_VITE_DEV"]? == "1"
+      expected << "use CRails::Middleware::ViteDevProxy"
+    end
+    expected.concat(["use CRails::Middleware::Static",
+                     "use OracleHeaderMiddleware",
+                     "use CRails::Middleware::RequestId",
+                     "use CRails::Middleware::RequestLogger",
+                     "use CRails::Middleware::ContentSecurityPolicy",
+                     "use CRails::Middleware::ShowExceptions",
+                     "use CRails::Middleware::Head"])
+    io.to_s.lines.map(&.chomp).should eq(expected)
   end
 
   it "use appends innermost and still runs" do

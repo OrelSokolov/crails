@@ -8,8 +8,10 @@ dependencies:
     path: ../action_view.cr
   action_pack_cr:
     path: ../action_pack.cr
+  importmap_cr:
+    path: ../importmap.cr
   icr:
-    github: OrelSokolov/icr.cr
+    path: ../../icr.cr
 targets:
   crails:
     main: src/crails_cli.cr

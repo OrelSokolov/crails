@@ -17,8 +17,12 @@ shards:
     version: 0.14.0
 
   icr:
-    git: https://github.com/orelsokolov/icr.cr.git
-    version: 1.2.0+git.commit.6121e34da57ba946ea0feaacb52d005972e6cae5
+    path: ../../icr.cr
+    version: 1.8.0
+
+  importmap_cr:
+    path: ../importmap.cr
+    version: 0.1.0
 
   pg:
     git: https://github.com/will/crystal-pg.git

@@ -1,0 +1,4 @@
+# Framework shards come from lib/ symlinks (see bench/crails_ar).
+name: crails_backup
+version: 0.1.0
+crystal: ">= 1.21.0"

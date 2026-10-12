@@ -79,9 +79,15 @@ module CRails
                     end
         puts "Type \"exit\" to leave · \".reset\" to clear · \".program\" to list the session"
 
+        # icr's own line editor (the standalone icr CLI uses): ↑/↓
+        # history, ←/→ editing, Tab completion, ^T search. Falls back to
+        # a plain gets when stdin is not a TTY (piped input).
+        editor = Icr::LineEditor.new(Icr::Completion::Index.default)
+        history = [] of String
+
         loop do
-          print io.is_a?(Icr::LiveSession) && io.needs_continuation? ? "... > " : "crails(#{short_env})> "
-          line = STDIN.gets
+          prompt = io.is_a?(Icr::LiveSession) && io.needs_continuation? ? "... > " : "crails(#{short_env})> "
+          line = editor.read_line(prompt, history)
           break if line.nil? # Ctrl+D
           line = line.strip
           next if line.empty?
@@ -89,8 +95,7 @@ module CRails
           unless io.is_a?(Icr::LiveSession)
             # Multi-line input in replay mode: end a line with '\'.
             while line.ends_with?('\\')
-              print "... > "
-              more = STDIN.gets
+              more = editor.read_line("... > ", history)
               break if more.nil?
               line = line.rchop + "\n" + more
             end
@@ -106,11 +111,13 @@ module CRails
             elapsed = Time.instant - started
             puts result.presence || "# (no output)"
             printf("# %.1fs\n", elapsed.total_seconds)
+            history << line unless history.last? == line
             break if io.is_a?(Icr::LiveSession) && !io.alive?
           end
         end
 
         puts
+        editor.close
         io.close if io.is_a?(Icr::LiveSession)
       end
     end
