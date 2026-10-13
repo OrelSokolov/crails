@@ -332,6 +332,24 @@ R = C × T × K
 максимально явными контрактами, записанными в коде и поддерживаемыми
 машинно. Генерируемому коду нужны проверяемые границы, а не магия.
 
+Есть и экономическая сторона: чтение кода становится дефицитным
+ресурсом. Разработчики уже тратят на него меньше времени — и будут
+тратить ещё меньше. Явные контракты и явные интерфейсы позволяют
+человеческому взгляду как можно быстрее проверить, что вообще написано
+в проекте: посмотрел на код — увидел интерфейс, увидел, как работает
+система, — и всё. Не тратятся ни токены агента на чтение всего подряд,
+ни время человека, не прогоняются бесполезные тесты ради выяснения
+того, что явный интерфейс показал бы сразу. Это прямая экономия:
+быстрый time-to-market и низкая стоимость поддержки — причём низкая
+стоимость поддержки достигается именно явными контрактами. Плюс удобная
+расширяемость: новое прикрепляется к живому старому интерфейсу, а не
+вместо него.
+
+И наоборот: то, что в эпоху ИИ можно генерировать сотни и тысячи строк
+кода не напрягаясь, не значит, что так нужно делать. Переписывание
+одной и той же функциональности двадцать раз не сделает ваших клиентов
+счастливее — счастье делает работающее и дешёвое в поддержке.
+
 И финальный штрих: один плохой отзыв стоит десяти хороших. Ruby и
 Rails сами распугали всех предыдущих клиентов — и новый клиент,
 сравнивая варианты, просто не выберет стек с такой историей. Смерть
@@ -477,25 +495,29 @@ Puma по умолчанию: latency 200+ ms — это очередь на с�
 | Папка | Порт | Статус |
 |---|---|---|
 | `active_support.cr/` | ActiveSupport | **Iteration 1 ✅** core_ext P0 + Duration + дата-математика + Concern/delegate/Notifications + Cache + I18n + NumberHelper (226 спеков, оракул 1:1 с гемом 8.1.4) |
-| `active_record.cr/` | ActiveRecord | **Iteration 2 ✅** CRUD-запись + dirty + валидации + коллбэки + ассоциации + миграции + `crails db:*` + `db/schema.cr` (дамп 1:1 с schema.rb-оракулом, `schema:load` round-trip) (249 спеков; оракулы 1:1 с гемом 8.1.4: 78 кейсов записи + дампы схемы миграций) |
-| `action_pack.cr/` | ActionPack (контроллеры, роутинг, params) | **Iteration 3 ✅** strong params, cookies/session/flash, `rescue_from`, `respond_to` |
-| `action_view.cr/` | ActionView (хэлперы, ECR, форм-билдер) | **Iteration 3 ✅** layouts/partials/collection-render, хелперы, output-safety, FormBuilder |
+| `active_record.cr/` | ActiveRecord | **Iteration 2 ✅** CRUD-запись + dirty + валидации + коллбэки + ассоциации + миграции + `crails db:*` + `db/schema.cr` (дамп 1:1 с schema.rb-оракулом, `schema:load` round-trip) (283 спека; оракулы 1:1 с гемом 8.1.4: 78 кейсов записи + дампы схемы миграций) + **SQLite-адаптер ✅** (crystal-sqlite3; Rails 8 pragmas: WAL/synchronous=NORMAL/busy_timeout/foreign_keys; FTS5; интроспекция схемы через `PRAGMA table_info` → schema.yml; оракул-спеки против sqlite3 CLI, prerequisite для Campfire-бенчмарка) |
+| `action_pack.cr/` | ActionPack (контроллеры, роутинг, params) | **Iteration 3 ✅** strong params, cookies/session/flash (+signed/encrypted), `rescue_from`, `respond_to`; + CSRF, rate limiting, send_file/send_data, ActionController::Live/SSE, typed params + OpenAPI codegen |
+| `action_view.cr/` | ActionView (хэлперы, ECR, форм-билдер) | **Iteration 3 ✅** layouts/partials/collection-render, хэлперы, output-safety, FormBuilder; + CSRF-токены форм, vite-хелперы |
 | `action_mailer.cr/` | ActionMailer | P0 ✅ (deliver_later, SMTP-диалог; P1: .with/observers/previews) |
 | `action_mailbox.cr/` | ActionMailbox | P0 ✅ (InboundEmail, Router, lifecycle; P1: ingress/incinerate) |
 | `action_text.cr/` | ActionText | P0 ✅ (RichText, sanitize, trix-layout; P1: аттачменты/sgid) |
-| `action_cable.cr/` | ActionCable | **Iteration 4 ✅** channels/стримы/протокол, ws-слой /cable |
-| `active_job.cr/` | ActiveJob | **Iteration 4 ✅** perform_later/now, retry/discard, адаптеры |
+| `action_cable.cr/` | ActionCable | **Iteration 4 ✅** channels/стримы/протокол, ws-слой /cable; + stream_for/broadcast_to, pubsub PG/Redis (Iteration 7) |
+| `active_job.cr/` | ActiveJob | **Iteration 4 ✅** perform_later/now, retry/discard; + адаптеры PG (solid_queue, recurring) / Redis / Kiq (Iteration 7, 20) |
 | `action_bot.cr/` | ActionBot (боты/агенты — не порт, дифференциатор) | **Iteration 16 P0 ✅** единый контракт сообщений + Telegram/WhatsApp адаптеры, вебхуки/поллер/SSE-стриминг, `crails generate bot` (оракул с telegram-bot-ruby 2.8.1; P1: conversations/Slack, P2: Brain-LLM) |
 | `active_storage.cr/` | ActiveStorage | P0 ✅ (Disk-сервис, Blob/Attachment, purge; P1: variants/S3/Mirror) |
 | `active_backup.cr/` | ActiveBackup (бэкапы БД/файлов — дифференциатор) | **Iteration 14 P0 ✅** tar.gz-архивы (GNU-tar-совместимый ustar), pg_dump -Fc / pg_restore, сторы-порт (Local/Memory), retention keep_last/keep_days, BackupJob через recurring; restore-тест в CI (18/18) |
-| `railties.cr/` | Railties + CLI `crails` | Iteration 0 + console (icr.cr) + `db:migrate/rollback/schema:dump/schema:load` |
-| `devise.cr/` | Devise (порт гема) | P0 ✅ (26/26 оракул + JWT-ротация; P1: recoverable/confirmable) |
-| `kiq.cr/` | Sidekiq → **Kiq** (порт гема, `Kiq`/`kiq_options`) + CLI `bin/kiq` | P0 ✅ (29/29 оракул с sidekiq 8.1.7, wire-совместимые пейлоады; ~26k jobs/s vs 1.4k у sidekiq; P2: Web UI) |
+| `turbo.cr/` | Turbo Rails (порт гема) | **Iteration 19 ✅** Turbo Streams (7 действий + refresh + кастомные), Broadcastable, view-хелперы, http-формат turbo-stream в action_pack; оракул 60 кейсов с turbo-rails 2.0.20, бенч 401 (fanout ×10 до 18.5M deliveries/s) |
+| `importmap.cr/` | importmap-rails (порт гема) | **Iteration 17 ✅** `pin`/`pin_all_from` + importmap-теги, `/javascripts/*` через Static; оракул 21 кейс с гема 2.2.3, байты байт-в-байт (17/17), бенч 204 (~11.6×) |
+| `active_agent.cr/` | ActiveAgent (ИИ-агенты — не порт, дифференциатор) | **P0 ✅** агентский цикл LLM+инструменты, module-порты Provider/Tool, compile-time JSON Schema тулзов, провайдеры openai/zai/kimi/deepseek/lmstudio/vllm/ollama; wire-оракул 6 кейсов, 21/21 (P2: Anthropic, мосты, HITL) |
+| `action_mcp.cr/` | ActionMCP (приложение как MCP-сервер — порт wire Ruby SDK `mcp`) | **Iteration 18 ✅** Streamable HTTP /mcp (initialize/tools/call), экспорт Tool/агентов как MCP-инструментов, аутентификация Bearer + квоты + биллинг-учёт; оракул 28 кейсов, сюита 41/41 |
+| `railties.cr/` | Railties + CLI `crails` | Iteration 0 + console (icr.cr) + `db:*` + middleware-стек (порт MiddlewareStack) + credentials + CSP/secure headers + observability (/up, /metrics, OTel-трейсы, JSON-логи) + роли worker/scheduler + `crails supervise` + `crails deploy` + Static/Vite-dev-прокси |
+| `devise.cr/` | Devise (порт гема) | **✅** модельный слой (26/26 оракул, JWT-ротация) + HTTP: роуты/контроллеры/вьюхи (Sessions/Registrations/Passwords/Confirmations/Unlocks/OmniAuth, оракул 74 кейса) + GitHub-провайдер + test-helpers + i18n; сюита 145/145 |
+| `kiq.cr/` | Sidekiq → **Kiq** (порт гема, `Kiq`/`kiq_options`) + CLI `bin/kiq` | **P0 ✅** (29/29 оракул с sidekiq 8.1.7, wire-совместимые пейлоады — интероп с настоящим sidekiq в обе стороны; ~26k jobs/s vs 1.4k у sidekiq) + **Web UI ✅** (`Kiq::Web` — порт Sidekiq::Web, оракул 94/94) |
 | `live_view.cr/` | Phoenix LiveView (серверная часть) | Iteration 8 P0 ✅ (диффы, handle_event; P1: live_component/uploads) |
 | `hello_world/` | первая итерация — Hello World на CRails | ✅ работает |
 | `rails_hello/` | интеграционное приложение полного стека | ✅ HTTP-оракул 9/9 против Rails 8.1.4 |
 | `demo/` | демо-приложение (CRails Notes) | ✅ работает |
-| `bench/` | сценарии замеров монолита | 000/100/101/200/300/400/410 сняты |
+| `bench/` | сценарии замеров монолита | 20 отчётов: hello/ar (000, 100–101), jobs (200–203), assets (204–205), full-page/ws (300–310), liveview/turbo/sse (400–410), observability/middleware (500–501) |
 | `assets/` | иконка: сине-голубой алмаз Crystal | есть |
 
 Имена шардов в `shard.yml` — без `.cr` (`active_record`, `action_pack`, …);
@@ -520,10 +542,33 @@ production-middleware — в разделе «Сравнение» выше: ~50
 17 MB против 102 MB). Приложение: `hello_world/hello/` (сгенерировано
 `crails new`, пересоздаётся с нуля за ~2 s компиляции).
 
-Дальше — `PLAN.md` в корне: Фаза 1 (порт ядра) закрыта по P0 —
-Iterations 0–6 и live_view (Iteration 8) с оракулами и бенчами; теперь
-Фаза 2 — продакшен-готовность (Iteration 7: PG-очереди/кэш/pubsub →
-observability → безопасность → supervision).
+Актуальное состояние — `PLAN.md` в корне (детали по каждой итерации —
+там и в PLAN.md шардов):
+
+- **Фаза 1 (порт ядра) — закрыта**: Iterations 0–6 — active_support,
+  active_record (+SQLite-адаптер), action_pack/action_view (полный
+  MVC-контур), active_job + action_cable, хвост стека (mailer/storage/
+  text/mailbox), devise + JWT, rails_hello с HTTP-оракулом против
+  Rails 8.1.4; live_view P0.
+- **Фаза 2 (продакшен-готовность) — почти закрыта**: Iteration 7
+  (PG-очереди/кэш/pubsub, Redis — опция) ✅; Iteration 11
+  (observability + deploy: /up, /metrics, OTel, graceful shutdown,
+  `crails deploy`) ✅; Iteration 12 (безопасность: rate limiting,
+  secure headers/CSP, CSRF, cookies.signed/encrypted, credentials,
+  AR-encryption, HTTP-caching) — осталось: sandboxed-миграции,
+  `crails check`; Iteration 13 (Vite P0+P1: manifest, Static,
+  dev-прокси) — остался `--vite`-флаг; Iteration 14 (send_file/
+  send_data) ✅; Iteration 15 (supervision: роли worker/scheduler,
+  `crails supervise` с backoff) — осталось: memory watchdog,
+  bench отказов.
+- **Фаза 3 (дифференциаторы) — идёт**: turbo.cr (Turbo Streams) ✅,
+  kiq.cr (порт Sidekiq + Web UI + CLI) ✅, importmap.cr ✅,
+  action_mcp.cr (приложение как MCP-сервер) ✅, streaming-first
+  (ActionController::Live/SSE, ~15× vs Rails+Puma) ✅, typed params +
+  OpenAPI codegen ✅; live_view, action_bot, active_agent,
+  active_backup — P0 готов. Осталось: порт ActiveModel (высветление
+  из active_record), DX-итерация (hot-reload шаблонов, error pages),
+  P1/P2-хвосты.
 
 Приходящим из Ruby: практические отличия семантики и типов
 (nilable-файндеры, type narrowing, кейворды vs Hash, виртуальные
