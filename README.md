@@ -1,5 +1,9 @@
 # CRails — Clean Rails (Чистые рельсы)
 
+<p align="center">
+  <img src="assets/icon.svg" width="200" alt="CRails — Clean Rails" />
+</p>
+
 > ⚠️ **EXPERIMENTAL FRAMEWORK, DO NOT USE IN PRODUCTION YET.**
 > Это эксперимент. Мы замеряем производительность и смотрим, что
 > получится на данный момент. Никаких гарантий совместимости.
