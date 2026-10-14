@@ -3,7 +3,7 @@ version: 2.0
 shards:
   action_pack_cr: # Overridden
     path: ../action_pack.cr
-    version: 0.1.0
+    version: 0.1.1
 
   action_view_cr: # Overridden
     path: ../action_view.cr
@@ -15,7 +15,7 @@ shards:
 
   db:
     git: https://github.com/crystal-lang/crystal-db.git
-    version: 0.14.0
+    version: 0.15.0
 
   erb_cr: # Overridden
     path: ../erb.cr
@@ -31,7 +31,11 @@ shards:
 
   pg:
     git: https://github.com/will/crystal-pg.git
-    version: 0.30.0
+    version: 0.31.0
+
+  propshaft_cr: # Overridden
+    path: ../propshaft_cr
+    version: 0.1.0
 
   redis:
     git: https://github.com/jgaskins/redis.git

@@ -1,0 +1,44 @@
+process_files	[".manifest.json", "absolute-root-7d18e02a.png", "app-443614e8.js.map", "app-d455a4ea.js", "bg-5d680212.png", "deep/bg2-2de79169.png", "deep/nested-6d9602fb.css", "deep/sub/style-bbbcaadc.css", "deep/sub/x-b7b096b8.png", "i-ada6fbaa.png", "landing-7f665b1b.css", "missingmap-cac5267d.css", "noext", "noquote-6d0a609c.png", "pre-abcdef12345.digested.css", "source-0f2949a4.css.map", "source-a155c40c.css", "util-decc257c.mjs"]
+manifest_raw	{"noquote.png":{"digested_path":"noquote-6d0a609c.png","integrity":null},"source.css.map":{"digested_path":"source-0f2949a4.css.map","integrity":null},"landing.css":{"digested_path":"landing-7f665b1b.css","integrity":null},"noext":{"digested_path":"noext","integrity":null},"pre-abcdef12345.digested.css":{"digested_path":"pre-abcdef12345.digested.css","integrity":null},"bg.png":{"digested_path":"bg-5d680212.png","integrity":null},"missingmap.css":{"digested_path":"missingmap-cac5267d.css","integrity":null},"source.css":{"digested_path":"source-a155c40c.css","integrity":null},"deep/bg2.png":{"digested_path":"deep/bg2-2de79169.png","integrity":null},"deep/nested.css":{"digested_path":"deep/nested-6d9602fb.css","integrity":null},"deep/sub/x.png":{"digested_path":"deep/sub/x-b7b096b8.png","integrity":null},"deep/sub/style.css":{"digested_path":"deep/sub/style-bbbcaadc.css","integrity":null},"i.png":{"digested_path":"i-ada6fbaa.png","integrity":null},"absolute-root.png":{"digested_path":"absolute-root-7d18e02a.png","integrity":null},"util.mjs":{"digested_path":"util-decc257c.mjs","integrity":null},"app.js":{"digested_path":"app-d455a4ea.js","integrity":null},"app.js.map":{"digested_path":"app-443614e8.js.map","integrity":null}}
+css_compiled	@import "other.css";\n.body {\n  background: url("/assets/bg-5d680212.png");\n  icon: url("../images/i.png");\n  plain: url("/assets/noquote-6d0a609c.png");\n  dot: url("/assets/bg-5d680212.png");\n  root: url("/assets/absolute-root-7d18e02a.png");\n  data: url("data:image/png;base64,AAA");\n  hash: url("#frag");\n  remote: url("https://x.example/a.png");\n  proto: url("//cdn.example/b.png");\n  query: url("/assets/bg-5d680212.png?v=123");\n  query_hash: url("/assets/bg-5d680212.png#anchor");\n  missing: url("missing.png");\n}\n//# sourceMappingURL=/assets/source-0f2949a4.css.map\n
+css_missingmap_compiled	a { color: red; }\n//\n
+js_compiled	const bg = "/assets/bg-5d680212.png";\nconst root = "/assets/absolute-root-7d18e02a.png";\nconst missing = "missing.png";\nconst data = RAILS_ASSET_URL("data:whatever");\nconst remote = RAILS_ASSET_URL("https://x/y.png");\nconst proto = RAILS_ASSET_URL("//cdn/z.png");\nconst query = "/assets/bg-5d680212.png?v=9";\n//# sourceMappingURL=/assets/app-443614e8.js.map\n
+mjs_passthrough	export const bg = RAILS_ASSET_URL("bg.png");\n
+map_copied	{"version":3,"sources":["source.css"]}
+png_copied	89504e470d0a1a0a66616b652d706e672d62797465732d626732
+digest_source	a155c40c
+digest_landing	7f665b1b
+digest_noext	1ea3061f
+noext_digested_path	noext
+predigested_digested_path	pre-abcdef12345.digested.css
+digested_path_source	source-a155c40c.css
+digested_path_map	app-443614e8.js.map
+fresh_ok	true
+fresh_wrong	false
+fresh_nil_digest	false
+fresh_predigested	true
+integrity_sha384	sha384-01Mx8NqUHo8kL3lTRiTJGTM/DglslS6/0nXsjyvoZdTnmItPb9QlBswQAQodoJPf
+integrity_sha256	sha256-38qckQmKD+sJ19NpkNprR+39dSJjjoxwJabw2oIu9h8=
+find_missing	nil
+assets_count	17
+assets_logical_sorted_head	[#<Pathname:absolute-root.png>, #<Pathname:app.js>, #<Pathname:app.js.map>, #<Pathname:bg.png>, #<Pathname:deep/bg2.png>]
+duplicate_landing	/* app landing */\n
+version_1	7f665b1b
+version_2	41102966
+ref_cascade_a	f3c7b53f
+ref_cascade_b	ffab772f
+ref_cascade_css_only	99fd3127
+extract_plain	["source.css", nil]
+extract_digested	["source.css", "9c3efd7b"]
+extract_nested	["deep/bg2.map", "1234567890abcdef"]
+extract_predigested	["pre-abcdef12345.digested.css", nil]
+extract_noext	["noext", nil]
+extract_short_digest	["a-abc.css", nil]
+missing_error_message	The asset 'foo.css' was not found in the load path.
+manifest_integrity_json	{"landing.css":{"digested_path":"landing-7f665b1b.css","integrity":"sha384-XdlogmsAdkBcsghNwyQ1yGghCvxR+7wQjdv3ck/aytIsL6kacWtRmvjrA4hQXwjN"},"noext":{"digested_path":"noext","integrity":"sha384-dn1nFYs6CfKjxw2UHnL4xx9qNppIkBGKEOjUa7m+L/qPr4szZ/ZmIk7XVqsQTpaM"}}
+manifest_legacy_read	["a-11111111.css", nil, "b-22222222.css", "sha384-xyz"]
+resolver_static	["/assets/source-a155c40c.css", nil, "/assets/noext"]
+resolver_dynamic	["/assets/source-a155c40c.css", nil]
+resolver_static_read	ASCII-8BIT
+second_process_noop	true
+clean_removes_stale	[false, true, true]

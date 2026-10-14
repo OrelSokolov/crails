@@ -1,4 +1,8 @@
 abstract class ApplicationController < ActionController::Base
+  # Asset pipeline (propshaft): compute_asset_path во вьюхах резолвит
+  # логические пути через манифест/load path.
+  include CRails::PropshaftHelper
+
   compile_partials({
     "note" => {path: "app/views/notes/_note.html.erb", locals: {"note" => Note}},
   })

@@ -27,3 +27,9 @@ hello_world/hello/tmp/
 railties.cr/tmp/
 tmp/
 *.log
+
+# --- propshaft_cr: оракул-гемы и артефакты реверс-прогонов ---
+.oracle-gems/
+propshaft_cr/oracle/propshaft_fixture/
+propshaft_cr/oracle/reverse_fixture/
+propshaft_cr/oracle/reverse_port_output/

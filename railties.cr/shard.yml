@@ -14,6 +14,9 @@ dependencies:
   importmap_cr:
     github: OrelSokolov/importmap.cr
     version: ~> 0.1.0
+  propshaft_cr:
+    github: OrelSokolov/propshaft.cr
+    version: ~> 0.1.0
   icr:
     github: OrelSokolov/icr.cr
 targets:

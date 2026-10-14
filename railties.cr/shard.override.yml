@@ -13,3 +13,5 @@ dependencies:
     path: ../action_pack.cr
   importmap_cr:
     path: ../importmap.cr
+  propshaft_cr:
+    path: ../propshaft_cr
