@@ -35,7 +35,7 @@ module CRails
         # (dev mode): shards treats duplicate path deps across the graph
         # as ambiguous sources, so the app's shard.yml stays free of
         # framework dependencies.
-        {"active_support.cr", "action_view.cr", "action_pack.cr",
+        {"active_support.cr", "erb.cr", "action_view.cr", "action_pack.cr",
          "active_record.cr", "railties.cr", "importmap.cr"}.each do |shard|
           target = File.join(dir, "lib", shard.gsub('.', "_"))
           # The symlink lives inside lib/, one level deeper than the app root.
