@@ -3,15 +3,15 @@ version: 0.1.0
 crystal: ">= 1.21.0"
 dependencies:
   active_support_cr:
-    path: ../active_support.cr
+    github: OrelSokolov/active_support.cr
   action_view_cr:
-    path: ../action_view.cr
+    github: OrelSokolov/action_view.cr
   action_pack_cr:
-    path: ../action_pack.cr
+    github: OrelSokolov/action_pack.cr
   importmap_cr:
-    path: ../importmap.cr
+    github: OrelSokolov/importmap.cr
   icr:
-    path: ../../icr.cr
+    github: OrelSokolov/icr.cr
 targets:
   crails:
     main: src/crails_cli.cr
