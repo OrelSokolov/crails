@@ -23,8 +23,7 @@ class Propshaft::Compiler::JsAssetUrls < Propshaft::Compiler
 
   private def collect_references(asset : Propshaft::Asset,
                                  references : Array(Propshaft::Asset)) : Nil
-    return unless asset.content.valid_encoding? # см. css_asset_urls.cr
-    asset.content.scan(ASSET_URL_PATTERN) do |m|
+    asset.scannable_content.scan(ASSET_URL_PATTERN) do |m| # см. css_asset_urls.cr
       referenced_asset = @assembly.load_path.find(
         resolve_path(File.dirname(asset.logical_path), m[1].not_nil!))
       if referenced_asset &&

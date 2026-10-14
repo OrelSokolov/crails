@@ -54,9 +54,10 @@
   `CRAILS_ASSETS_PATHS`; env работает в обоих режимах.
 - **content_type-таблица минимальна** (css/js); всё прочее —
   pass-through копия. Отдачу делает static.cr со своей MIME-таблицей.
-- **Regex на бинарном контенте**: PCRE2 бросает UTF-8 error —
-  referenced_by пропускает invalid-UTF8 ассеты (url в бинарнике не
-  резолвится; в ruby — резолвился бы).
+- **Regex на бинарном контенте** — закрыто: `Asset#scannable_content`
+  (invalid UTF-8 байты выбрасываются, ASCII-паттерны матчатся как в
+  ruby ASCII-8BIT); url в бинарнике резолвится (spec
+  `binary_scan_spec.cr`).
 - **parallel процессинга нет** — однопоточно (объём мал).
 - **file_watcher/cache_sweeper нет** — dev-ревалидация через
   static.cr (mtime-кэш), не через LoadPath-кэш.

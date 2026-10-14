@@ -20,11 +20,8 @@ class Propshaft::Compiler::CssAssetUrls < Propshaft::Compiler
 
   private def collect_references(asset : Propshaft::Asset,
                                  references : Array(Propshaft::Asset)) : Nil
-    # Бинарные ассеты (invalid UTF-8) сканировать нельзя — PCRE2
-    # бросает UTF-8 error; url-ссылок в них не бывает (отклонение от
-    # гема: url внутри бинарника не резолвится).
-    return unless asset.content.valid_encoding?
-    asset.content.scan(ASSET_URL_PATTERN) do |m|
+    # Бинарные ассеты сканируются лосс-фри (Asset#scannable_content).
+    asset.scannable_content.scan(ASSET_URL_PATTERN) do |m|
       referenced_asset = @assembly.load_path.find(
         resolve_path(File.dirname(asset.logical_path), m[1].not_nil!))
       if referenced_asset &&

@@ -24,6 +24,21 @@ class Propshaft::Asset
     File.read(@path) # байты сохраняются (digest считается по bytes)
   end
 
+  # Контент для regex-сканов: PCRE2 требует валидный UTF-8, а у
+  # бинарных ассетов File.read даёт invalid-строку. Паттерны ASCII —
+  # невалидные байты выбрасываются (invalid: :skip): ASCII-
+  # подпоследовательность, а значит и совпадения, те же, что у
+  # ruby-regex в ASCII-8BIT (отклонение закрыто: url в бинарнике
+  # резолвится).
+  def scannable_content : String
+    @scannable_content ||= begin
+      content = self.content
+      content.valid_encoding? ? content : String.new(content.to_slice, "UTF-8", invalid: :skip)
+    end
+  end
+
+  @scannable_content : String?
+
   def content_type : String?
     CONTENT_TYPES[File.extname(logical_path)]?
   end
