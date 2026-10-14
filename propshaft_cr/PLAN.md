@@ -45,10 +45,13 @@
   Accept-Encoding. `.br` — внешний CLI `brotli`; при отсутствии
   молча пропускается. Гем ничего подобного не пишет.
 - **`rails asset:precompile` грузит окружение приложения** — CLI
-  `crails assets:*` читает файловую систему (app/assets/* +
-  vendor/assets/* + vendor/javascript) и env `CRAILS_ASSETS_PATHS`;
-  кастомный `config.assets.paths` приложения CLI не видит (в рантайме
-  приложения — работает, `CRails.application.assets`).
+  `crails assets:*` в приложении (src/app.cr + config/application.cr)
+  собирает `bin/app` и выполняет таску в окружении приложения:
+  кастомный `config.assets.paths` виден (`Application#cmd_assets` →
+  `CRails::AssetsCommands`). Bare-FS режим (исходников приложения
+  нет, напр. Docker-стадия): load path — файловая система
+  (app/assets/* + vendor/assets/* + vendor/javascript) и env
+  `CRAILS_ASSETS_PATHS`; env работает в обоих режимах.
 - **content_type-таблица минимальна** (css/js); всё прочее —
   pass-through копия. Отдачу делает static.cr со своей MIME-таблицей.
 - **Regex на бинарном контенте**: PCRE2 бросает UTF-8 error —
