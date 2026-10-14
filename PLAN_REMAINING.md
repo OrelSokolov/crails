@@ -203,6 +203,18 @@ in-memory заглушка). HTTP нет вовсе; shard.yml НЕ зависи
    logout → password reset (postgres, fake-контроллеры через __set_params/
    __run_action — паттерн action_pack.cr/spec/controllers_spec.cr).
 
+## Фаза AM — порт ActiveModel 8.1.4 + рефакторинг компонентов — ПЛАН
+
+Шард `~/myshards/active_model.cr` (план: `~/myshards/active_model.cr/PLAN.md`):
+перенос единственного из 11 гемов rails/rails без порта. Oracle-first по
+AGENTS.md (cases.rb + test-suite гема activemodel 8.1.4, локально в rvm).
+Высветлить из active_record.cr валидации/Errors/dirty/callbacks-машину;
+AR включает AM (как в оригинале). Интеграция: devise (validatable на
+AM-валидаторах вместо рукописных errors.add), active_storage/action_text
+(AM::Naming-контракт), action_view (form objects через AM::Model).
+Критерий: все существующие сюиты AR/devise зелёные без правок; публичные
+API не меняются. Репозиторий/README — после реализации (итерация 5 плана).
+
 ## Известные побочные факты
 
 - rails_hello и demo не собираются: в railties require "importmap_cr", а в их

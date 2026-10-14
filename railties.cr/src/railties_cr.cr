@@ -270,7 +270,15 @@ module CRails
           end
           node = node.next
         end
-        head
+        # Cable-монтаж перед всем стеком: WebSocket-upgrade на /cable не
+        # должен попадать в request-логирование и парсинг тела (аналог
+        # ActionCable::Engine, чей route замыкается на сервер напрямую).
+        if cable = cable_handler
+          cable.next = head
+          cable
+        else
+          head
+        end
       end
     end
 
@@ -327,6 +335,13 @@ module CRails
     # SolidQueue-воркер) — railties не зависит от очередей.
     property worker : Proc(Nil)? = nil
     property scheduler : Proc(Nil)? = nil
+
+    # Cable-монтаж (аналог ActionCable::Engine: /cable в общем стеке).
+    # railties не зависит от action_cable_cr — приложение с кабелем
+    # подставляет готовый HTTP::Handler (обычно ActionCable::Server#
+    # ws_handler); он встаёт ПЕРЕД middleware-стеком, чтобы upgrade-
+    # запросы не проходили RequestId/Logger и не разбирали тело.
+    property cable_handler : HTTP::Handler? = nil
 
     private def serve(args : Array(String)) : Nil
       port = config.port

@@ -34,7 +34,7 @@ task :deps do
     Dir.chdir(File.join(ROOT, shard)) do
       next unless File.exist?("shard.yml")
       sh "shards install" do |ok, _res|
-        raise "shards install failed in #{shard}" unless ok || Dir.exists?("lib")
+        raise "shards install failed in #{shard}" unless ok || Dir.exist?("lib")
       end
     end
   end
@@ -68,6 +68,12 @@ task :spec do
       puts "==> #{shard}"
       if shard == "action_pack.cr"
         sh "make spec"
+      elsif shard == "active_record.cr"
+        sh "crystal spec"
+        # SQLite adapter oracle suite: own compile-time schema fixture
+        # (CRAILS_SCHEMA is per-compilation; PG suites use db/schema.yml)
+        sh({"CRAILS_SCHEMA" => "spec/fixtures/sqlite_schema.yml"},
+           "crystal spec spec/sqlite_oracle_spec.cr")
       else
         sh "crystal spec"
       end
