@@ -93,6 +93,22 @@ active_support.cr/spec/crypto_oracle_spec.cr). Подробный общий п�
       бенч results/205-backup.md. Детали: active_backup.cr/PLAN.md,
       корневой PLAN.md (Iteration 14 Фазы 3).
 
+- [ ] Интеграция оригинального @rails/actioncable (клиентский слой) —
+      TODO: заменить самодельный WS-слой demo
+      (app/assets/javascripts/turbo_cable.js, ~60 строк — «аналог
+      cable.js из @hotwired/turbo-rails») на vendored UMD-сборку
+      оригинального @rails/actioncable (consumer/subscriptions) для
+      полного соответствия интерфейсу turbo-rails: control-фреймы
+      (welcome/ping/disconnect/confirm_subscription) обязан съедать
+      библиотечный слой, а не ручная проверка frame.type (костыль из
+      251d368: пока её не было, epoch-ms из ping-фреймов рендерились
+      в <body> через Turbo.renderStreamMessage). Вместе с этим —
+      пересмотр interfaces: stream-source элемент, identifier
+      протокол, reconnect-семантика actioncable; оракул —
+      побайтовое/поведенческое сравнение с turbo-rails 8.1.x в
+      headless-браузере. Затрагивает: demo, turbo.cr (PLAN.md P1:
+      повтор E2E), возможно railties.cr (раздача vendored JS).
+
 Сводные сюиты (2026-10-05): railties 185/185, action_pack 99/99,
 active_support 319/319, active_record 283/283, devise 120/120,
 action_cable 51/51. Фазы A–I закрыты полностью.
