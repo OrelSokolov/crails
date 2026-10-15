@@ -28,7 +28,7 @@ class UsersController < ApplicationController
 
   def update
     require_user
-    user = current_user.not_nil!
+    user = current_user.not_nil!.as(User)
     ok = user.update_with_password({
       "current_password"    => params["current_password"].to_s,
       "name"                => params["name"].to_s.strip,
