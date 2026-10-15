@@ -1,1 +1,1 @@
-../myshards/active_storage.cr
+/home/oleg/workspace/myshards/active_storage.cr
