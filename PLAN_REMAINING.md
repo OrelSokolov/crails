@@ -397,8 +397,19 @@ HTML-либы, GC не при чём), детали в PLAN.md шарда.
   LIFO-реверс). Остаток CF-2 — нет (вендоринг в lib/ приложения — при
   встройке на CF-4).
 
-### CF-3. active_storage.cr (в myshards пусто)
+### CF-3. active_storage.cr — ГОТОВО (2026-10-15, myshards/active_storage.cr: 6e6030d/b60d7ae/51531fe/ced49c9)
 
+Oracle-first по AGENTS.md: oracle/cases.rb гоняет activestorage 8.1.4
+standalone (70 детерминированных кейсов), spec/oracle_spec.cr — зеркало,
+71/71 побайтово. 3a Blob core (checksum, signed_id SHA1+Marshal-int,
+identify срезом Marcel, DiskService) → 3b Attachment + Attached::One/
+Many + has_one/many_attached (POLY_OWNERS-реестр AR-cr) → 3c Variation/
+Variant/NamedVariant (digest/key через Marshal-wire, ImageMagick 7 CLI —
+снято с mini_magick: `IN[0] -auto-orient -resize WxH> fmt:-`) → 3d
+analysis (`identify`, EXIF-swap) + purge. Отклонения и wire-факты —
+PLAN.md шарда. Остаток: URL-generation (routes гема) не портировалась —
+в Campfire отдаётся контроллером приложения; VariantWithRecord/
+track_variants — гем-дефолт false.
 Blob/Attachment/VariantRecord, Disk-сервис, `has_one_attached`/
 `has_many_attached`, варианты (avatar_variant → webp), analysis, signed_id
 прямых загрузок, purge-джобы. Oracle: activestorage 8.1.4.
