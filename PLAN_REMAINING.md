@@ -215,6 +215,228 @@ AM-валидаторах вместо рукописных errors.add), active_
 Критерий: все существующие сюиты AR/devise зелёные без правок; публичные
 API не меняются. Репозиторий/README — после реализации (итерация 5 плана).
 
+## Фаза CF — Campfire 1:1 (полный продукт на CRails) — ПЛАН
+
+Контекст: целевое приложение `~/workspace/once-campfire-crails` — реализация
+ONCE Campfire на CRails, собранная как бенчмарк-срез (только 8 контрактных
+роутов + browser gate). Цель — довести до полного продукта, перенося
+Rails-реализацию максимально 1:1. Оракул-референс:
+`~/workspace/once-campfire-crails/bench-workspace/once-campfire` (rev edbc779,
+оптимизированная; для продуктовых фич — первоисточник). Вторичный референс
+«нерельсовый стек уже прошёл этот путь»:
+`bench-workspace/once-campfire-express` — там ВСЁ из перечисленного ниже уже
+реализовано (membership-чеки, Origin/Sec-Fetch-Site, sanitize-html,
+rate limit, бусты, аттачи с вариантами, web push, opengraph, все каналы,
+refresh-протокол) — сверяться при порте.
+
+Аудит приложения (2026-10-15, сессия H2Code): приложение обходит шарды —
+raw SQL вместо associations, HTML строками вместо вьюх, свой JobQueue вместо
+ActiveJob, свой PageCache. Реальные дыры: membership не проверяется на HTTP-путях
+(IDOR: чтение/запись/переименование любой комнаты), нет Origin/Sec-Fetch-Site
+чека на не-GET, stored-XSS через тело сообщения (body рендерится как есть),
+FTS-краш (`q=AND` → fts5 syntax error → 500; Rails квотит слова —
+`message/searchable.rb` `match_terms`). Отсутствуют: бусты, аттачи, удаления
+(сообщений/комнат/sign-out), opengraph unfurl, звуки, typing, read/unread live
+(unread fanout и `user_X_reads` бродкасты мертвы), refresh-протокол (стаб),
+involvement, баны, полный bot JSON API, `/users/:id` (ссылки из сообщений — 404),
+история поиска, `?after=`, запись last_room, permalink `@:messageId`.
+
+Этапы (каждый: oracle-first по AGENTS.md → `crystal spec` шарда зелёный →
+browser smoke + verification harness приложения не краснеют):
+
+- [x] CF-0.1 header_only forgery protection — ГОТОВО (2026-10-15):
+      action_pack.cr/src/request_forgery_protection.cr + слой rails/rails@main
+      (8.2.0.alpha): `using: :header_only|:header_or_legacy_token`
+      (forgery_protection_verification_strategy), таблица истинности
+      verified_via_header_only?/verified_with_legacy_token? (same-origin/
+      same-site ок; cross-site — только trusted_origins; нет хедера — plain
+      HTTP фоллбэк по X-Forwarded-Proto; "none" — отказ), QUERY-exempt,
+      Vary: Sec-Fetch-Site послеэкшен, if:/unless: в protect_from_forgery,
+      InvalidAuthenticityToken → подкласс InvalidCrossOriginRequest (8.2
+      алиас-семантика, 8.1.4-зеркало не сломано). 8.1.4-оракула стратегий
+      нет — оракул исходник rails@main, спек-зеркало
+      railties.cr/spec/csrf_spec.cr describe "verification strategies"
+      (17 кейсов; сюит csrf 45/45, railties 336/339 — 3 падения
+      предсуществующие, проверено подменой на HEAD-версию файла).
+      Осталось (закрыто 2026-10-15): вендоренные lib/*_cr пересинхронизированы
+      с myshards (перестройка 13:57), `crystal build src/app.cr --release
+      -Dwithout_mt` зелёный (только deprecation-варнинги), browser smoke
+      (playwright 1.63, свежая пустая БД из схемы сида, serverX×1) —
+      полный PASS.
+
+- [x] CF-0.2 on_subscribe/on_unsubscribe — ГОТОВО (2026-10-15):
+      lib/action_cable_cr/src/channel.cr (вендоренная копия — myshards/
+      action_cable.cr сейчас висячий симлинк, восстановить при пересинх-
+      роне): макросы on_subscribe/on_unsubscribe (метод или блок,
+      if:/unless: условия), реестр + end-of-program codegen по образцу
+      periodically, выполнение ПОСЛЕ хуков subscribed/unsubscribed
+      (гем: after-callbacks). Спек-зеркало
+      lib/action_cable_cr/spec/on_subscribe_spec.cr (4 кейса: порядок,
+      unless при reject, блочная форма, dispatch как action — Campfire
+      refresh). 4/4 + periodically 5/5 (без регресса). Применение:
+      PresenceChannel present/absent (unread_at=NULL при present +
+      broadcast user_X_reads) — в CF-4.
+
+### CF-0. Точечные фиксы существующих шардов
+
+- action_pack.cr / request_forgery_protection.cr: семантика Rails `header_only`
+  (Sec-Fetch-Site + Origin на не-GET, `with: :exception`), включена в
+  ApplicationController по умолчанию. Сейчас `forgery_protection_origin_check =
+  false` (выключено) — паритет с Campfire `authentication.rb`.
+- action_pack.cr / rate_limiting.cr: паритет `rate_limit to:, within:, with:`
+  (Campfire: sessions#create, 10/3 мин per IP), общий стор для fork-воркеров
+  (образец — express rate_limit.js, отдельная SQLite-таблица).
+- action_pack.cr / strong_parameters.cr: убедиться, что require/permit реально
+  фильтруют (приложение сейчас достаёт params руками, у Rails — permit!).
+- active_record.cr: STI — полные имена классов в колонке type
+  («Rooms::Open», не «Open»; приложение сейчас хранит короткие — расходится с
+  сидом Rails) + `becomes!`.
+- active_record.cr / relation.cr: includes/preload с вложенными хешами
+  (`preload(creator: :avatar_attachment)` — сигнатура сейчас принимает только
+  плоские `*names`); polymorphic/through сейчас ленивые — для 1:1 нужен nested
+  preload. + `insert_all` (Room#grant_to), сверка
+  `has_many :through` + `dependent: :destroy` с message/broadcasts.rb.
+- action_cable.cr / channel.cr: `on_subscribe :present / on_unsubscribe
+  :absent, unless: :subscription_rejected?` (Rails 7.2 API, PresenceChannel
+  Campfire на нём построен; сейчас только periodically).
+- turbo.cr: полная матрица broadcast_*_to (`partial:`, `target:`, `html:`,
+  `attributes: { maintain_scroll: true }` — Campfire использует).
+- active_job.cr: перевести приложение с собственного JobQueue на ActiveJob +
+  solid_queue-адаптер (он есть), форк-безопасность (reset! после fork — сейчас
+  app-level workaround) — в адаптер.
+
+### CF-1. HTML-санитайзер — новый шард rails_html_sanitizer.cr — ГОТОВО (2026-10-15)
+
+`~/workspace/myshards/rails_html_sanitizer.cr` (симлинк в ~/workspace/
+crails): порт rails-html-sanitizer 1.7.1, HTML5-vendor (как выбирает
+best_supported_vendor Rails 8.1.4), поверх lexbor (с 2026-10-15; изначально
+myhtml — см. миграцию в CF-2 ниже).
+Oracle-first по AGENTS.md: оракул 57 кейсов с гема 1.7.1 + nokogiri/
+gumbo — гемы локально в oracle/gems (rvm-рубины на машине выпотрошены,
+оракул ходит системным ruby 3.3.8 с GEM_HOME=oracle/gems); спек-зеркало
+9/9, байт-в-байт. API 1:1: Full/Link/SafeList санитайзеры + Permit/
+Target/TextOnly скрабберы (strip bottom-up / prune top-down, foreign
+svg/math прунится, комментарии снимаются), Loofah-семантика allowed_uri?
+(контроль-символы до/после entity-декода, numeric refs без `;`,
+&Tab;/&NewLine;/&colon;, %3A-разделитель, 26 протоколов, data:-URI
+mediatype-фильтр), опции tags:/attributes: + class-level allowlist'ы.
+Ключевое: lexbor/myhtml без fragment-режима — вход парсится как
+`<div>#{html}</div>` (body-подобный контекст вставки, «утёкшие» за
+лишний </div> узлы подхватываются сиблингами обёртки с сохранением
+порядка); сериализатор свой, gumbo-совместимый (&<> nbsp в тексте,
+&"nbsp в атрибутах, void-теги, raw-text элементы); обход с мутациями —
+next сиблинг захватывается ДО рекурсии. Отклонения (задокументированы в
+PLAN.md шарда): CSS-скраба нет (разрешённый style удаляется целиком),
+SVG local-ref атрибуты удаляются, а не переписываются, HTML4 = алиасы
+HTML5. Вендоринг в lib/ приложения — на CF-4, когда Campfire начнёт
+использовать (CF-2 action_text зависит от этого шарда).
+
+### CF-2. action_text.cr — 2a/2b/2c/2d ГОТОВО (2026-10-15)
+
+Готово в 2a/2b (шард `myshards/action_text.cr`, коммит 21d17c1, спеки
+только `--release` — см. ниже): Fragment (wrap/source/replace/find_all),
+PlainTextConversion, Content canonicalization (minify + trix-conversion,
+to_plain_text/to_html), Attachment (from_attachable/from_attributes/
+from_node, full_attributes, with_full_attributes, to_html) +
+TrixConversion + Minification, Attachable-миксин + Identification-
+интерфейс + Attachables::{ContentAttachment,RemoteImage,
+MissingAttachable}, SignedGlobalID (Marshal-конверт через новый
+`MessageVerifier.generate_marshaled` — active_support cb06ae7; ключ
+PBKDF2-SHA1(1000)/"signed_global_ids"). Locator-реестр вместо
+constantize. Oracle 42 кейса байт-в-байт (6 групп), детерминирован.
+Санитайзер мигрирован myhtml→lexbor 3.6.4 (0b51a49): оба шарда теперь
+на живом C-парсере lexborisov, оракулы не изменились. СВЯЗКА ВРЕМЕННАЯ:
+C-биндинг будет удалён — в разработке собственный HTML5-парсер на чистом
+Crystal (шард с оракулом), выйдет как **html5.cr** и станет целью
+миграции; нового кода на lexbor-API поверх Fragment-абстракции не писать.
+CAVEAT: debug-сборка (без --release) ловит heap-corruption SIGSEGV в
+Attachment-группе — компиляторный артефакт (1.21.1 и 1.22.0, обе
+HTML-либы, GC не при чём), детали в PLAN.md шарда.
+
+Остаток CF-2:
+
+- **CF-2c ГОТОВО (2026-10-15, коммит 6f803b0)**: RichText-модель
+  (body-кодер руками: dump = Content#to_html, load = Content.new —
+  кастомных serialize-кодеров у AR-cr нет; touch владельца в after_save)
+  + has_rich_text-макрос на ActiveRecord::Base (ручной where-getter —
+  полиморфного has_one у AR-cr нет; autosave after_save; dependent
+  before_destroy; POLY_OWNERS через has_many as_name:). Оракул
+  cases_ar.rb 26 кейсов, спек 26/26 байт-в-байт (sqlite). Wire-факт:
+  body хранится несанитизированным — санитайз при рендере (CF-2d).
+  ДЕПО: найден и задокументирован мискомпайл компилятора — module-union
+  портится на границе конструктора Attachment (COMPILER_BUG_REPORT.md,
+  repro/union_miscompile/, Crystal 1.20.1–1.22.0); спеки шарда гонять
+  ПОФАЙЛОВО (комбинированный бинарь ловит баг). При встройке шарда в
+  приложение (CF-4) баг может проявиться — тогда репро/отчёт уже готовы
+  для upstream, либо снимается приходом html5.cr.
+  ПОДВОХ: active_record.cr/shard.yml локально указывает
+  active_support_cr как path ../active_support.cr (для резолва
+  path-цепочки action_text.cr) — НЕ коммитить, откатить перед
+  публикацией AR-шарда.
+- **CF-2d ГОТОВО (2026-10-15)**: AttachmentGallery (селектор гема
+  `div:has(gallery + gallery)` воспроизведён обходом: все дети —
+  ws-текст/gallery-аттач + пара соседних ЭЛЕМЕНТ-детей), ContentHelper
+  (render_action_text_content/_attachments/_attachment, санитайз
+  HTML5-вендора — дефолт Rails 8.1; вместо ActionView — реестр
+  register_attachment_renderer, дефолты — побайтовые порты ERB-вьюх
+  гема: missing ☒, content_attachment, remote_image, gallery-layout,
+  layout div.trix-content), Content#to_s = layout-рендер (to_html —
+  сырое тело для БД), Content::Filter/Filters (пайплайн Campfire
+  rails_ext, canonicalize: false), Selector value-формы `[attr=v]` /
+  `[@attr='v']`. Эффективная семантика гема снята оракулом (gallery-
+  check в render_attachments мёртв — все аттачи через with_full_
+  attributes-rebuild + inner_html-рендер, content-атрибут санитизируется
+  и дропается если пуст). Оракул +29 кейсов (ag_*/rd_*/flt_*: 63 всего,
+  рендер — настоящими вьюхами гема через ActionController-renderer),
+  спек 9/9 байт-в-байт + AR 26/26. НАЙДЕН ВОРКАРАУНД мискомпайла
+  module-union: union НЕ должен проходить аргументом ни в один
+  конструктор — Attachment#initialize принимает только node, @attachable
+  присваивается сеттером; репро stage.cr теперь зелёное (регрессионный
+  страж), детали COMPILER_BUG_REPORT.md/PLAN.md шарда. Обход
+  action_text_each_descendant исправлен на document-order (был
+  LIFO-реверс). Остаток CF-2 — нет (вендоринг в lib/ приложения — при
+  встройке на CF-4).
+
+### CF-3. active_storage.cr (в myshards пусто)
+
+Blob/Attachment/VariantRecord, Disk-сервис, `has_one_attached`/
+`has_many_attached`, варианты (avatar_variant → webp), analysis, signed_id
+прямых загрузок, purge-джобы. Oracle: activestorage 8.1.4.
+ГЛАВНЫЙ ТЕХНИЧЕСКИЙ РИСК фазы: image-бэкенд в Crystal (аналога sharp нет) —
+решить заранее: binding к libvips или ImageMagick (системная зависимость!)
+или минимальный свой ресайзер. Эксплойт-поведение Campfire: аватары
+(`users/avatar.rb`), аттачи сообщений с превью, логотип аккаунта.
+
+### CF-4. Порта приложения 1:1 (~/workspace/once-campfire-crails)
+
+- Вьюхи: ERB→ECR конвертер (по образцу nunjucks-to-eta у express) или
+  расширение compile_partials для чтения файлов без ручных locals; форматные
+  шаблоны `.turbo_stream` (create/update/destroy сообщений) и JSON
+  (jbuilder для bot API). ~100 вьюх референса.
+- Контроллеры/каналы/джобы — из референса 1:1 (concerns RoomScoped/
+  Authorization/Authentication, все каналы, включая TypingNotifications и
+  ReadRooms; jobs: broadcast_unread_room, push_message, bot/webhook,
+  remove_banned_content, room/destroy).
+- Замена raw SQL → associations/scopes, string-HTML → вьюхи, JobQueue →
+  ActiveJob, PageCache → app-level ResponseCache/FragmentCache/RecordCache
+  (в оптимизированном Rails это МОДЕЛИ приложения — портируются 1:1, шардами
+  не являются).
+- Чек-лист паритета (из аудита): бусты, аттачи, баны, unfurl, звуки, typing,
+  read/unread live, refresh-протокол, involvement, полный bot API (X-Total-Count
+  / Link-пагинация), sign-out, `/users/:id`, история поиска + clear, `?after=`,
+  `@:messageId`, запись last_room, join_code-регенерация, логотип, управление
+  юзерами аккаунта, PWA, sounds.
+
+### CF-5. Web Push (опционально, после CF-4)
+
+VAPID (JWT ES256) + aes128gcm — готового шарда нет, писать поверх openssl.
+Референс: express jobs.js:353-397 (web-push), Campfire push.rb.
+
+Порядок: CF-0 → CF-1 → CF-2 → CF-3 (решение по image-бэкенду принять на
+старте CF-3) → CF-4 → CF-5. Синхронизация: приложение вендорит копии шардов
+в lib/*_cr (имена отличаются от myshards!) — после каждого этапа переливка
+myshards → lib/ отдельным заходом.
+
 ## Известные побочные факты
 
 - rails_hello и demo не собираются: в railties require "importmap_cr", а в их
