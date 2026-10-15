@@ -11,7 +11,7 @@ class TurboRenderer
   })
 
   def render_turbo_partial(partial : String, locals : Hash(String, Turbo::RenderVal)) : String
-    h = {} of String => AVPartialLocal
+    h = {} of String => ERBPartialLocal
     locals.each do |k, v|
       h[k] = v.is_a?(Note) ? v : raise ArgumentError.new("unsupported local #{k}: #{v.class}")
     end

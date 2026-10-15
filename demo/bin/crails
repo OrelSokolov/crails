@@ -1,3 +1,3 @@
 #!/bin/sh
 # CRails dev CLI wrapper (generated; points at the crails binary).
-exec "/home/oleg/rails.cr/railties.cr/bin/crails" "$@"
+exec "/home/oleg/workspace/myshards/railties.cr/bin/crails" "$@"
