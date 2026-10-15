@@ -1,9 +1,12 @@
 # Vendored JS (@hotwired/turbo + cable-connector), встроенные в
 # бинарник на этапе компиляции — тот же паттерн, что у live-ассетов.
+# Файлы лежат в propshaft load path (app/assets/javascripts) и
+# раздаются static-middleware'ом; контроллер — компайл-тайм-fallback
+# на случай отключённого assets root.
 
 class AssetsController < ApplicationController
-  TURBO_JS       = {{ read_file("public/turbo.js") }}
-  TURBO_CABLE_JS = {{ read_file("public/turbo_cable.js") }}
+  TURBO_JS       = {{ read_file("app/assets/javascripts/turbo.js") }}
+  TURBO_CABLE_JS = {{ read_file("app/assets/javascripts/turbo_cable.js") }}
 
   def show
     case params["file"].to_s

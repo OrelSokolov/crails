@@ -242,7 +242,11 @@
       <nav>
         <a class="navlink" href="/notes">Заметки</a>
         <a class="navlink" href="/chat">Чат-бот</a>
-<% user = current_user %>
+<%# Сужение до User: у framework-контроллеров (devise-хелперы на
+    ActionController::Base) current_user : ActiveRecord::Base+?, где
+    нет email/initials/name — компилируется в контексте каждого
+    контроллера. %>
+<% user = current_user.as?(User) %>
 <% if user %>
         <span class="sep"></span>
         <div class="userbox">
