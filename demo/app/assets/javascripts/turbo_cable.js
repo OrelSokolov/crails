@@ -39,6 +39,12 @@
     ws.onmessage = function (event) {
       var frame;
       try { frame = JSON.parse(event.data); } catch (e) { return; }
+      // Control frames (welcome / ping / confirm_subscription / rejection /
+      // disconnect) carry a "type" field; only channel broadcasts
+      // (identifier + message) are turbo-stream documents. Pings carry
+      // epoch-ms in "message" — rendering them dumps raw numbers into
+      // <body> via Turbo.renderStreamMessage.
+      if (frame.type) return;
       if (frame.message && window.Turbo && Turbo.renderStreamMessage) {
         Turbo.renderStreamMessage(frame.message);
       }
