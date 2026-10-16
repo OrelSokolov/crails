@@ -324,6 +324,15 @@ describe "propshaft 1.3.2 oracle" do
       Compress::Gzip::Reader.open(file, &.gets_to_end)
     end
     content.should eq File.read(digested("source.css"))
+
+    # .br-сосед: шард brotli (quality 11), декодируется обратно в оригинал
+    br_path = File.join(out3, MANIFEST_H["source.css"].not_nil!.digested_path + ".br")
+    File.exists?(br_path).should be_true
+    File.exists?(File.join(out3, MANIFEST_H["landing.css"].not_nil!.digested_path + ".br")).should be_true
+    File.exists?(File.join(out3, MANIFEST_H["bg.png"].not_nil!.digested_path + ".br")).should be_false
+    br = Brotli::Decoder.new.decode(File.read(br_path).to_slice)
+    br.should eq File.read(digested("source.css")).to_slice
+
     # манифест не изменился относительно основного прогона
     File.read(File.join(out3, ".manifest.json")).should eq COMPILED["manifest_raw"]
   end

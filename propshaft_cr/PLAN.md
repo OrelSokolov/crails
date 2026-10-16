@@ -42,8 +42,8 @@
 
 - **`.gz`/`.br` прекомпрессия** (`Config#versions`, CLI precompile) —
   CRails-расширение: соседи digest-файлов, отдаёт static.cr по
-  Accept-Encoding. `.br` — внешний CLI `brotli`; при отсутствии
-  молча пропускается. Гем ничего подобного не пишет.
+  Accept-Encoding. `.gz` — stdlib, `.br` — чистый Crystal (шард
+  `brotli`, `Brotli.encode` quality 11). Гем ничего подобного не пишет.
 - **`rails asset:precompile` грузит окружение приложения** — CLI
   `crails assets:*` в приложении (src/app.cr + config/application.cr)
   собирает `bin/app` и выполняет таску в окружении приложения:

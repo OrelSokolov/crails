@@ -2,8 +2,10 @@
 #
 # Отклонение (CRails-расширение): versions = [".gz", ".br"] — прекомпрессия
 # соседями digest-файлов; static.cr отдаёт их по Accept-Encoding. Гем ничего
-# подобного не пишет. .br требует внешний CLI `brotli`; при отсутствии —
-# молча пропускается.
+# подобного не пишет. .gz — Compress::Gzip (stdlib), .br — чистый Crystal
+# (шард brotli, Brotli.encode quality 11).
+
+require "brotli"
 
 class Propshaft::Processor
   getter load_path : Propshaft::LoadPath
@@ -64,7 +66,8 @@ class Propshaft::Processor
   end
 
   # CRails-расширение: .gz/.br рядом с digest-файлом. Только текстовые
-  # ассеты (content_type известен); .br — через CLI brotli, если есть.
+  # ассеты (content_type известен); .br — шард brotli (quality 11, как
+  # `brotli -q 11` у CLI).
   private def write_versions(asset : Propshaft::Asset) : Nil
     return if @versions.empty? || asset.content_type.nil?
     data = File.read(dest_path(asset))
@@ -83,22 +86,6 @@ class Propshaft::Processor
   end
 
   private def write_brotli(source : String) : Nil
-    return unless brotli_available?
-    File.open("#{source}.br", "w") do |file|
-      status = Process.run("brotli", {"-q", "11", "-c", source},
-        output: file, error: Propshaft.logger)
-      File.delete("#{source}.br") unless status.success?
-    end
-  end
-
-  @@brotli_available : Bool? = nil
-
-  private def brotli_available? : Bool
-    @@brotli_available ||= begin
-      Process.run("brotli", {"--version"}, output: Process::Redirect::Close,
-        error: Process::Redirect::Close).success?
-    rescue File::NotFoundError
-      false
-    end
+    File.write("#{source}.br", Brotli.encode(File.read(source).to_slice))
   end
 end

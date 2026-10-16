@@ -16,7 +16,8 @@ What it does:
 - writes `public/assets/.manifest.json`:
   `{"<logical>":{"digested_path":"…","integrity":null}}`;
 - precompresses with `.gz`/`.br` siblings (a CRails extension;
-  static.cr serves them by Accept-Encoding);
+  static.cr serves them by Accept-Encoding; `.br` via the pure-Crystal
+  `brotli` shard, quality 11);
 - `clean`/`clobber`/`reveal`.
 
 Serving is handled by `railties_cr`'s `CRails::Middleware::Static`
