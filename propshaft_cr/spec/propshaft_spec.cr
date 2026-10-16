@@ -20,7 +20,12 @@ EXPECTED = begin
   hash
 end
 
-ROOT = File.join(Dir.tempdir, "crails_propshaft_spec_#{Random::Secure.hex(4)}")
+# Фикстура — внутри проекта (не Dir.tempdir!): порядок ключей манифеста —
+# readdir-порядок (как Pathname#children в гемe), он зависит от файловой
+# системы; oracle/propshaft_cases.rb собирает фикстуру на ext4-томе
+# репозитория, и побайтовое сравнение manifest_raw сходится только когда
+# спек строит фикстуру на той же ФС (на tmpfs /tmp порядок другой).
+ROOT = File.join(__DIR__, "..", "tmp", "crails_propshaft_spec_#{Random::Secure.hex(4)}")
 OUTPUT = File.join(ROOT, "public", "assets")
 
 LOAD_PATHS = PropshaftSpecFixture.build(ROOT)

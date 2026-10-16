@@ -28,7 +28,9 @@ class OracleController < ActionController::Base
   end
 
   def echo
-    render plain: params.keys.sort.map { |k| "#{k}=#{params[k]}" }.join("&")
+    unsafe = params.to_unsafe_h
+    keys = unsafe.except("controller", "action").keys.sort
+    render plain: keys.map { |k| "#{k}=#{unsafe[k]}" }.join("&")
   end
 
   def echo_post
