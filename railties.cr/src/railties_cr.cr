@@ -138,6 +138,16 @@ module CRails
     nil
   end
 
+  # config.active_storage — опции Active Storage из config/application.cr
+  # приложения (аналог config.active_storage ActiveRecord-гема). Дефолты —
+  # как у движка 8.1.4 (`config.active_storage.variant_processor ||
+  # :mini_magick`); применяется клей приложения, см. Config#active_storage.
+  class ActiveStorageConfig
+    # :mini_magick (дефолт 8.1.4) | :vips | :disabled — движок
+    # резолвит transformer: ImageMagick / Vips / NullTransformer.
+    property variant_processor : Symbol = :mini_magick
+  end
+
   class Config
     property host : String = "localhost"
     property port : Int32 = 3000
@@ -260,6 +270,15 @@ module CRails
       assets.versions = [".gz", ".br"]
       assets
     end
+
+    # config.active_storage.* — railties_cr не зависит от
+    # active_storage_cr (шард подключается в приложение генераторами),
+    # поэтому движок не может применить конфиг сам, как ActiveStorage::
+    # Engine в after_initialize; вместо этого клей приложения
+    # (AppGlue.ensure_active_storage_config) присваивает
+    # ActiveStorage.variant_processor до boot.
+    property active_storage : CRails::ActiveStorageConfig =
+      CRails::ActiveStorageConfig.new
 
     # Дефолтные load path: подкаталоги app/assets/* (аналог
     # paths["app/assets"].existent_directories в railtie гема) +

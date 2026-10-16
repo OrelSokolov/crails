@@ -187,6 +187,30 @@ CRails.dev_endpoints["/rails/mailers"] = ->(ctx : HTTP::Server::Context) { Actio
         src = src.sub(anchor, %(require "railties_cr"\n#{req}\n))
         gen.say("patch", path)
         File.write(path, src) unless gen.pretend?
+
+        ensure_active_storage_config(gen) if deps.includes?("active_storage.cr")
+      end
+
+      # Применяет config.active_storage.variant_processor приложения к
+      # ActiveStorage.variant_processor до boot — то, что в Rails делает
+      # ActiveStorage::Engine в after_initialize (`app.config.
+      # active_storage.variant_processor || :mini_magick`). Вызывается,
+      # когда генератор вайрит active_storage (mailbox); railties_cr сам
+      # не зависит от active_storage_cr, поэтому присваивание живёт в
+      # коде приложения.
+      def self.ensure_active_storage_config(gen : Base) : Nil
+        path = File.join("src", "app.cr")
+        return unless File.exists?(path)
+        src = File.read(path)
+        glue = %(ActiveStorage.variant_processor = CRails.application.config.active_storage.variant_processor)
+        return if src.includes?(glue)
+        anchor = "CRails.application.initialize!"
+        return unless src.includes?(anchor)
+        src = src.sub(anchor, "# config.active_storage.variant_processor — как ActiveStorage::Engine\n" \
+                          "# after_initialize в Rails (8.1.4: :mini_magick | :vips | :disabled).\n" \
+                          "#{glue}\n\n#{anchor}")
+        gen.say("patch", path)
+        File.write(path, src) unless gen.pretend?
       end
     end
   end

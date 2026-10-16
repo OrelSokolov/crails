@@ -105,6 +105,28 @@ Zeitwerk/autoload (`zeitwerk:check`), `to_prepare`-семантика,
 
 ## Статус
 
+### Iteration 20 — config.active_storage.variant_processor ✅ (2026-10-16)
+Проброс `config.active_storage.variant_processor` в приложения
+(аналог ActiveStorage::Engine `after_initialize`:
+`app.config.active_storage.variant_processor || :mini_magick`,
+activestorage 8.1.4):
+- `CRails::ActiveStorageConfig` + `CRails::Config#active_storage`
+  (`variant_processor : Symbol = :mini_magick` — дефолт 8.1.4;
+  `:vips`/`:disabled` — Transformers::Vips/NullTransformer в шарде).
+- railties_cr не зависит от active_storage_cr (как с cable/bot — клей
+  приложения), поэтому конфиг применяет `AppGlue.
+  ensure_active_storage_config`: патчит `src/app.cr` присваиванием
+  `ActiveStorage.variant_processor = CRails.application.config.
+  active_storage.variant_processor` перед `CRails.application.
+  initialize!` — вызывается из `ensure_shard`, когда генератор вайрит
+  active_storage (сейчас mailbox, транзитивно).
+- Спек: generators_spec «applies config.active_storage.variant_processor
+  before boot» (патч до boot-анкора, идемпотентность). Сьют: 323/324 —
+  1 падение `get_with_params` (integration_spec) предсуществующее,
+  воспроизводится на чистом дереве (query-параметры содержат
+  controller/action — расхождение с оракулом, к этой итерации отношения
+  не имеет).
+
 ### Iteration 19 — ActionDispatch::IntegrationSession/IntegrationTest ✅ (2026-10-06)
 Аналог `ActionDispatch::Testing::Integration` (actionpack 8.1.4) на
 стеке CRails: in-process запросы через полный middleware-стек

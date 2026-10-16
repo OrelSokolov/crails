@@ -530,6 +530,32 @@ describe "generators: mailbox (oracle mailbox_basic)" do
       File.exists?("app/mailboxes/application_mailbox.cr").should be_true
     end
   end
+
+  it "applies config.active_storage.variant_processor before boot (engine after_initialize)" do
+    in_app("mailbox_config") do
+      # The real `crails new` skeleton boots the app; the shared in_app
+      # fixture does not — add the anchor the glue patches in front of.
+      File.write("src/app.cr", <<-CODE + "\n")
+        require "railties_cr"
+
+        require "../config/application"
+        require "../config/routes"
+
+        CRails.application.initialize!
+        CODE
+      run_gen(CRails::Generators::MailboxGenerator, ["Reactions"])
+
+      src = read("src/app.cr")
+      glue = %(ActiveStorage.variant_processor = CRails.application.config.active_storage.variant_processor)
+      src.should contain(glue)
+      # inserted before the boot anchor, after the requires
+      src.index(glue).not_nil!.should be < src.index("CRails.application.initialize!").not_nil!
+      src.index(glue).not_nil!.should be > src.index(%(require "../config/application")).not_nil!
+      # idempotent
+      run_gen(CRails::Generators::MailboxGenerator, ["Reactions"])
+      read("src/app.cr").scan(glue).size.should eq(1)
+    end
+  end
 end
 
 describe "generators: helper (oracle helper_basic)" do
