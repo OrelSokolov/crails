@@ -108,6 +108,52 @@ active_support.cr/spec/crypto_oracle_spec.cr). Подробный общий п�
       побайтовое/поведенческое сравнение с turbo-rails 8.1.x в
       headless-браузере. Затрагивает: demo, turbo.cr (PLAN.md P1:
       повтор E2E), возможно railties.cr (раздача vendored JS).
+- [ ] Chat: инлайн WS-клиент на actioncable consumer — TODO: второй
+      самодельный ActionCable-клиент живёт в page_js вьюхи
+      (demo/app/views/chat/index.html.erb:44-53): сам говорит на
+      протоколе (subscribe/message), сам фильтрует фреймы (от ping
+      спасает случайно — у ping нет msg.text). Перевести на consumer
+      из @rails/actioncable вместе с turbo_cable.js (пункт выше).
+- [ ] Demo: вычистить протухшие «известные упрощения» (README) —
+      TODO-аудит:
+      * `post /notes/:id/destroy` → честный DELETE-роут: README
+        утверждает «нет _method-override», но он уже есть —
+        railties.cr/src/middleware.cr:382 request_method (аналог
+        Rack::MethodOverride, поддерживает PATCH/PUT/DELETE);
+        обновить роут, форму (button_to method: :delete) и README;
+      * `render_action("new", 422)` (ApplicationController) — костыль
+        вместо `render :new, status:`: implicit render знает только
+        текущий экшен; дорастить action_pack до render другого
+        шаблона того же контроллера;
+      * `CableValue` рекурсивный алиас: броадкасты бота уходят через
+        JSON.parse (demo/src/cable.cr) — литералы не инферятся в
+        рекурсивный union;
+      * data-confirm только Hash-формой (`data: {"confirm" => ...}`):
+        NamedTuple-литерал в **opts не кастится в Hash(String,String).
+- [ ] Devise: layout-типизация current_user — TODO: убрать
+      `current_user.as?(User)` из demo-layout
+      (application.html.erb:249): devise-хелперы включены прямо в
+      ActionController::Base, и framework-контроллеры видят
+      current_user : ActiveRecord::Base+? без методов модели, а layout
+      компилируется в контексте каждого контроллера. Как в Rails:
+      devise-контроллеры должны наследовать ApplicationController
+      приложения (parent_controller-механика devise), тогда layout
+      видит типизированный current_user.
+- [ ] GlobalID-сериализация AR-записей в ActiveJob — TODO: убрать
+      ArgValue-костыль `__record_email(record : ActiveJob::ArgValue)`
+      в devise.cr/src/mailer.cr: он нужен потому, что action_mailer's
+      __deliver-кодген инстанцирует экшены мейлера сериализованными
+      аргументами, а AR-записи в ArgValue не входят (нет GlobalID —
+      to_arg на них падает). Порт GlobalID (gid://model/id) даст
+      record'у пережить deliver_later и уберёт оверлоад.
+- [ ] Demo: убрать дублирование раздачи ассетов — TODO: AssetsController
+      фактически мёртв (static-middleware перехватывает /assets/* по
+      propshaft до роутера); оставить один механизм раздачи.
+- [ ] Demo: bootstrap lib/-симлинков — TODO: demo/lib в .gitignore,
+      symlink'и ставятся руками; свежий клон падает на сборке
+      («can't find propshaft_cr» — то, что уронило demo 2026-10-15).
+      bin/crails должен бутстрапить lib/ по зависимостям shard.yml
+      (как `shards install`, но на локальные ../<shard>.cr).
 
 Сводные сюиты (2026-10-05): railties 185/185, action_pack 99/99,
 active_support 319/319, active_record 283/283, devise 120/120,
