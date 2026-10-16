@@ -126,6 +126,9 @@ activestorage 8.1.4):
   воспроизводится на чистом дереве (query-параметры содержат
   controller/action — расхождение с оракулом, к этой итерации отношения
   не имеет).
+- `crails new`: транзитивный деп propshaft — `propshaft.cr/lib/brotli`
+  симлинкуется в lib/ приложения (brotli.cr 0.3.0 с GitHub; .br-прекомпрессия
+  теперь чистым Crystal вместо внешнего CLI `brotli` — см. propshaft_cr).
 
 ### Iteration 19 — ActionDispatch::IntegrationSession/IntegrationTest ✅ (2026-10-06)
 Аналог `ActionDispatch::Testing::Integration` (actionpack 8.1.4) на

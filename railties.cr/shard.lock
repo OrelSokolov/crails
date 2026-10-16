@@ -13,6 +13,10 @@ shards:
     path: ../active_support.cr
     version: 0.1.0
 
+  brotli:
+    git: https://github.com/orelsokolov/brotli.cr.git
+    version: 0.3.0
+
   db:
     git: https://github.com/crystal-lang/crystal-db.git
     version: 0.15.0

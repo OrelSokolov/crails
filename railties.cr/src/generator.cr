@@ -46,8 +46,10 @@ module CRails
         end
 
         # Transitive shard deps installed inside the framework shards'
-        # own lib/ dirs (active_record.cr needs db + pg at compile time).
-        {"active_record.cr/lib/db", "active_record.cr/lib/pg"}.each do |dep|
+        # own lib/ dirs (active_record.cr needs db + pg, propshaft.cr
+        # needs brotli for .br precompression — at compile time).
+        {"active_record.cr/lib/db", "active_record.cr/lib/pg",
+         "propshaft.cr/lib/brotli"}.each do |dep|
           target = File.join(dir, "lib", File.basename(dep))
           next if File.exists?(target)
           link_target = File.join(rel, "..", dep)
