@@ -101,7 +101,7 @@ describe "debug exceptions pages (rails 8.1 dev oracle)" do
     body.should contain "Request body"
   end
 
-  it "test/production keep the bare responses" do
+  it "test/production serve public/<status>.html, else the bare pages" do
     before = CRails.env
     CRails.env = CRails::Env::Production
     begin
@@ -114,8 +114,25 @@ describe "debug exceptions pages (rails 8.1 dev oracle)" do
       DEBUG_RUN.get "/boom/1"
       resp = DEBUG_RUN.response.not_nil!
       resp.status_code.should eq 500
-      resp.content_type.not_nil!.should start_with "text/plain"
-      resp.body.should eq "500 Internal Server Error"
+      # нет public/500.html -> встроенная страница (PublicExceptionsController fallback)
+      resp.content_type.not_nil!.should start_with "text/html"
+      resp.body.should contain "500 Internal Server Error"
+      resp.body.should_not contain "Application Trace"
+
+      # с public/500.html приложение отдаёт свою страницу (кэш хранит
+      # записи только для существующих файлов, так что запись после
+      # «пустого» запроса видна без сброса кэша)
+      Dir.mkdir_p(File.join(CRails.root, "public"))
+      custom = File.join(CRails.root, "public", "500.html")
+      File.write(custom, "<h1>custom 500</h1>")
+      begin
+        DEBUG_RUN.get "/boom/1"
+        resp = DEBUG_RUN.response.not_nil!
+        resp.status_code.should eq 500
+        resp.body.should contain "custom 500"
+      ensure
+        File.delete(custom)
+      end
     ensure
       CRails.env = before
     end
