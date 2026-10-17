@@ -229,9 +229,13 @@ module CRails
 
     # ActionDispatch::ShowExceptions + DebugExceptions port: the rescue
     # ladder — RoutingError -> 404 HTML page, TooManyRequests -> 429,
-    # anything else -> 500 (backtrace in development).
+    # anything else -> 500 (backtrace in development). In development the
+    # 404/500 bodies are the DebugExceptions HTML pages (routes table,
+    # params/request body — see debug_exceptions.cr); test/production
+    # keep the bare pages.
     class ShowExceptions
       include HTTP::Handler
+      include Configurable
 
       NOT_FOUND_PAGE = "<!doctype html><html><body><h1>404 Not Found</h1></body></html>"
 
@@ -240,7 +244,11 @@ module CRails
       rescue ex : ActionController::RoutingError
         context.response.status_code = 404
         context.response.headers["Content-Type"] = "text/html; charset=UTF-8"
-        context.response.print NOT_FOUND_PAGE
+        if CRails.env.development?
+          context.response.print DebugExceptions.routing_error_page(context, ex, application)
+        else
+          context.response.print NOT_FOUND_PAGE
+        end
       rescue ex : ActionController::TooManyRequests
         CRails.logger.warn { "#{context.request.method} #{context.request.path} rate limited (429)" }
         context.response.status_code = 429
@@ -284,10 +292,13 @@ module CRails
         end
         CRails.logger.error(exception: ex) { "#{context.request.method} #{context.request.path} failed" }
         context.response.status_code = 500
-        context.response.headers["Content-Type"] = "text/plain; charset=utf-8"
-        body = "500 Internal Server Error"
-        body += "\n#{ex}\n#{ex.backtrace?.try(&.join('\n'))}" if CRails.env.development?
-        context.response.print body
+        if CRails.env.development?
+          context.response.headers["Content-Type"] = "text/html; charset=utf-8"
+          context.response.print DebugExceptions.internal_error_page(context, ex, application)
+        else
+          context.response.headers["Content-Type"] = "text/plain; charset=utf-8"
+          context.response.print "500 Internal Server Error"
+        end
       end
     end
 
@@ -360,8 +371,10 @@ module CRails
           return
         end
         unless match
+          # Rails message format — the dev Routing Error page shows it
+          # verbatim: No route matches [GET] "/path".
           raise ActionController::RoutingError.new(
-            "No route matches #{context.request.method} #{context.request.path}")
+            %(No route matches [#{context.request.method}] "#{context.request.path}"))
         end
         klass = ActionController::Dispatch.resolve(match.route.controller)
         unless klass
