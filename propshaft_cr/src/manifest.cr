@@ -5,16 +5,16 @@
 
 class Propshaft::Manifest
   class Entry
-    getter logical_path : String
-    getter digested_path : String
-    getter integrity : String?
+    attr_reader logical_path : String
+    attr_reader digested_path : String
+    attr_reader integrity : String?
 
     def initialize(@logical_path : String, @digested_path : String,
                    @integrity : String?)
     end
   end
 
-  getter integrity_hash_algorithm : String?
+  attr_reader integrity_hash_algorithm : String?
 
   def initialize(@integrity_hash_algorithm : String? = nil)
     @entries = {} of String => Entry

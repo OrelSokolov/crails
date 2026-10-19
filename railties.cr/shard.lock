@@ -13,6 +13,10 @@ shards:
     path: ../active_support.cr
     version: 0.1.0
 
+  attr_reader_cr:
+    git: https://github.com/orelsokolov/attr_reader.cr.git
+    version: 0.1.0
+
   brotli:
     git: https://github.com/orelsokolov/brotli.cr.git
     version: 0.3.0

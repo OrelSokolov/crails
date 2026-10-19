@@ -1,3 +1,4 @@
+require "attr_reader_cr"
 # propshaft_cr — порт propshaft 1.3.2 (компилятор asset pipeline).
 #
 # Oracle: oracle/propshaft_cases.rb → oracle/propshaft_expected.yml

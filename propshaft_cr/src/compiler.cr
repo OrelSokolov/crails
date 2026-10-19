@@ -1,7 +1,7 @@
 # Порт Propshaft::Compiler (базовый класс, lib/propshaft/compiler.rb).
 
 abstract class Propshaft::Compiler
-  getter assembly : Propshaft::Assembly
+  attr_reader assembly : Propshaft::Assembly
 
   def initialize(@assembly : Propshaft::Assembly)
   end

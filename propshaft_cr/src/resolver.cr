@@ -9,8 +9,8 @@ module Propshaft::Resolver
   abstract def read(logical_path : String) : String?
 
   class Static
-    getter manifest_path : String
-    getter prefix : String
+    attr_reader manifest_path : String
+    attr_reader prefix : String
 
     def initialize(@manifest_path : String, @prefix : String)
     end
@@ -39,8 +39,8 @@ module Propshaft::Resolver
   end
 
   class Dynamic
-    getter load_path : Propshaft::LoadPath
-    getter prefix : String
+    attr_reader load_path : Propshaft::LoadPath
+    attr_reader prefix : String
 
     def initialize(@load_path : Propshaft::LoadPath, @prefix : String)
     end

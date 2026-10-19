@@ -1,11 +1,14 @@
 name: propshaft_cr
-version: 0.1.1
+version: 0.1.2
 crystal: ">= 1.21.0"
 description: |
   Port of the propshaft 1.3.2 asset pipeline compiler: digest output,
   .manifest.json, CSS/JS url rewriting, clean/clobber. Serving is handled
   by railties_cr's CRails::Middleware::Static (Propshaft::Server port).
 dependencies:
+  attr_reader_cr:
+    github: OrelSokolov/attr_reader.cr
+    version: ~> 0.1.0
   brotli:
     github: OrelSokolov/brotli.cr
     version: ~> 0.3.0

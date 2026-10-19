@@ -8,10 +8,10 @@
 require "brotli"
 
 class Propshaft::Processor
-  getter load_path : Propshaft::LoadPath
-  getter output_path : String
-  getter compilers : Propshaft::Compilers
-  getter manifest_path : String
+  attr_reader load_path : Propshaft::LoadPath
+  attr_reader output_path : String
+  attr_reader compilers : Propshaft::Compilers
+  attr_reader manifest_path : String
 
   def initialize(@load_path : Propshaft::LoadPath, @output_path : String,
                  @compilers : Propshaft::Compilers, @manifest_path : String,

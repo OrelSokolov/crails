@@ -3,10 +3,10 @@
 # от этого порядка зависит порядок ключей в манифесте (пин оракулом).
 
 class Propshaft::LoadPath
-  getter paths : Array(String)
-  getter compilers : Propshaft::Compilers
-  getter version : String?
-  getter integrity_hash_algorithm : String?
+  attr_reader paths : Array(String)
+  attr_reader compilers : Propshaft::Compilers
+  attr_reader version : String?
+  attr_reader integrity_hash_algorithm : String?
 
   def initialize(paths : Enumerable(String), @compilers : Propshaft::Compilers,
                  @version : String? = nil, @integrity_hash_algorithm : String? = nil)

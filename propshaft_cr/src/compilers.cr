@@ -1,7 +1,7 @@
 # Порт Propshaft::Compilers (lib/propshaft/compilers.rb, propshaft 1.3.2).
 
 class Propshaft::Compilers
-  getter registrations : Hash(String, Array(Propshaft::Compiler.class))
+  attr_reader registrations : Hash(String, Array(Propshaft::Compiler.class))
 
   def initialize(@assembly : Propshaft::Assembly)
     @registrations = {} of String => Array(Propshaft::Compiler.class)

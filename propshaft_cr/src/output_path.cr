@@ -1,8 +1,8 @@
 # Порт Propshaft::OutputPath (lib/propshaft/output_path.rb, propshaft 1.3.2).
 
 class Propshaft::OutputPath
-  getter path : String
-  getter manifest : Propshaft::Manifest
+  attr_reader path : String
+  attr_reader manifest : Propshaft::Manifest
 
   def initialize(@path : String, @manifest : Propshaft::Manifest)
   end

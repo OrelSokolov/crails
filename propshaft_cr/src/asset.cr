@@ -1,9 +1,9 @@
 # Порт Propshaft::Asset (lib/propshaft/asset.rb, propshaft 1.3.2).
 
 class Propshaft::Asset
-  getter path : String        # абсолютный путь на диске
-  getter logical_path : String
-  getter load_path : Propshaft::LoadPath
+  attr_reader path : String        # абсолютный путь на диске
+  attr_reader logical_path : String
+  attr_reader load_path : Propshaft::LoadPath
 
   # Минимальная Mime-таблица: content_type нужен только реестру
   # компиляторов (в Rails .mjs/.map не имеют Mime-типа → pass-through).

@@ -1,7 +1,7 @@
 # Порт Propshaft::Assembly (lib/propshaft/assembly.rb, propshaft 1.3.2).
 
 class Propshaft::Assembly
-  getter config : Propshaft::Config
+  attr_reader config : Propshaft::Config
 
   def initialize(@config : Propshaft::Config = Propshaft::Config.new)
   end
