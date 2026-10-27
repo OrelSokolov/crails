@@ -18,13 +18,29 @@ module CRails
         abort "ERROR: #{dir} already exists" if File.exists?(dir)
 
         exe = Process.executable_path || abort("ERROR: cannot locate the crails binary")
-        # The monorepo is located from the working directory (AppGlue.repo_root),
-        # not from the binary path — a carat-installed crails (~/.carat/bin)
-        # has no checkout around it, but `crails new` still runs from the repo.
+        # The monorepo is located from the working directory or the carat
+        # store (AppGlue.repo_root), not from the binary path — a
+        # carat-installed crails keeps the whole monorepo in
+        # ~/.carat/shards/crails/<version>/.
         repo_root = AppGlue.repo_root ||
-          abort "ERROR: no CRails monorepo above #{Dir.current} — run `crails new` from inside the checkout"
-        rel = Path[repo_root].relative_to?(Path[dir]) ||
-          abort "ERROR: cannot compute relative path from #{dir} to #{repo_root}"
+          abort "ERROR: no CRails monorepo above #{Dir.current} and no carat-installed crails — " \
+                "run from inside the checkout or `carat install OrelSokolov/crails`"
+        # Inside the checkout lib/ symlinks stay relative — but ONLY when
+        # the repo sits straight above the app (rel is pure ".." segments,
+        # which collapse lexically from lib/). Any named component in rel
+        # (the repo hangs off another branch of the tree, e.g. an app
+        # generated from the carat store) would dangle, so that case gets
+        # absolute links.
+        rel = Path[repo_root].relative_to?(Path[dir])
+        if rel && rel.to_s.split('/').all? { |part| part == ".." }
+          link_to = ->(path_in_repo : String) {
+            File.join(rel, "..", path_in_repo).to_s
+          }
+        else
+          link_to = ->(path_in_repo : String) {
+            File.join(repo_root, path_in_repo).to_s
+          }
+        end
 
         puts "      create  #{@path}"
         dirs = [
@@ -35,32 +51,34 @@ module CRails
         ]
         dirs.each { |d| FileUtils.mkdir_p(File.join(dir, d)) }
 
-        # Framework shards are wired as lib/ symlinks into the monorepo
-        # (dev mode): shards treats duplicate path deps across the graph
-        # as ambiguous sources, so the app's shard.yml stays free of
-        # framework dependencies.
-        {"active_support.cr", "erb.cr", "action_view.cr", "action_pack.cr",
-         "active_record.cr", "railties.cr", "importmap.cr", "propshaft_cr"}.each do |shard|
-          target = File.join(dir, "lib", shard.gsub('.', "_"))
-          # The symlink lives inside lib/, one level deeper than the app root.
-          link_target = File.join(rel, "..", shard)
-          puts "      symlink lib/#{File.basename(target)} -> #{link_target}"
-          File.symlink(link_target.to_s, target)
-        end
-
-        # Transitive shard deps installed inside the framework shards'
-        # own lib/ dirs (active_record.cr needs db + pg, propshaft.cr
-        # needs brotli for .br precompression — at compile time;
-        # railties_cr requires attr_reader_cr at compile time too).
-        {"railties.cr/lib/attr_reader_cr",
-         "active_record.cr/lib/db", "active_record.cr/lib/pg",
-         "active_record.cr/lib/sqlite3",
-         "propshaft_cr/lib/brotli"}.each do |dep|
-          target = File.join(dir, "lib", File.basename(dep))
+        # Framework shards are wired as lib/ symlinks into the monorepo.
+        # In a dev checkout the sources are sibling dirs (railties.cr is
+        # real, the rest are myshards symlinks); a carat-installed monorepo
+        # (~/.carat/shards/crails/<ver>/) resolves the same shards into the
+        # root lib/ (prebuild: shards install of the crails shard) — its
+        # sibling symlinks dangle. First existing source wins; shards treats
+        # duplicate path deps across the graph as ambiguous sources, so the
+        # app's shard.yml stays free of framework dependencies.
+        {"active_support_cr" => {"active_support.cr", "lib/active_support_cr"},
+         "attr_reader_cr"    => {"railties.cr/lib/attr_reader_cr", "lib/attr_reader_cr"},
+         "erb_cr"            => {"erb.cr", "lib/erb_cr"},
+         "action_view_cr"    => {"action_view.cr", "lib/action_view_cr"},
+         "action_pack_cr"    => {"action_pack.cr", "lib/action_pack_cr"},
+         "active_record_cr"  => {"active_record.cr", "lib/active_record_cr"},
+         "railties_cr"       => {"railties.cr"},
+         "importmap_cr"      => {"importmap.cr", "lib/importmap_cr"},
+         "propshaft_cr"      => {"propshaft_cr", "lib/propshaft_cr"},
+         "db"                => {"active_record.cr/lib/db", "lib/db"},
+         "pg"                => {"active_record.cr/lib/pg", "lib/pg"},
+         "sqlite3"           => {"active_record.cr/lib/sqlite3", "lib/sqlite3"},
+         "brotli"            => {"propshaft_cr/lib/brotli", "lib/brotli"}}.each do |name, candidates|
+          target = File.join(dir, "lib", name)
           next if File.exists?(target)
-          link_target = File.join(rel, "..", dep)
-          puts "      symlink lib/#{File.basename(dep)} -> #{link_target}"
-          File.symlink(link_target.to_s, target)
+          candidate = candidates.find { |c| File.exists?(File.join(repo_root, c)) } || next
+          # The symlink lives inside lib/, one level deeper than the app root.
+          link_target = link_to.call(candidate)
+          puts "      symlink lib/#{name} -> #{link_target}"
+          File.symlink(link_target, target)
         end
 
         write(dir, "shard.yml", shard_yml)

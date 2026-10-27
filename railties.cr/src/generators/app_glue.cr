@@ -160,30 +160,46 @@ CRails.dev_endpoints["/rails/mailers"] = ->(ctx : HTTP::Server::Context) { Actio
       # Monorepo checkout root, located from the working directory: walk
       # up until a railties.cr shard appears. The binary's own location
       # (railties.cr/bin, ./.carat/bin, ~/.carat/bin) says nothing about
-      # the checkout — a carat-installed crails must still find the repo
-      # it is launched from.
+      # the checkout — a carat-installed crails carries no checkout around
+      # the binary, but carat stores the WHOLE monorepo per version in
+      # its store, so fall back to the installed copy: `crails new` then
+      # works from any directory.
       def self.repo_root : String?
         dir = Dir.current
         loop do
           return dir if File.exists?(File.join(dir, "railties.cr", "shard.yml"))
           parent = File.dirname(dir)
-          return nil if parent == dir
+          break if parent == dir
           dir = parent
         end
+        # NB: Crystal's File.expand_path does NOT expand "~" (unlike Ruby) —
+        # build the carat home from $HOME, the way carat itself does.
+        carat_home = ENV["CARAT_HOME"]? ||
+                     (ENV["HOME"]?.try { |h| File.join(h, ".carat") })
+        if carat_home
+          pointer = File.join(carat_home, "shards", "crails", "current")
+          if File.exists?(pointer)
+            stored = File.join(carat_home, "shards", "crails", File.read(pointer).strip)
+            return stored if File.exists?(File.join(stored, "railties.cr", "shard.yml"))
+          end
+        end
+        nil
       end
 
       def self.ensure_shard(gen : Base, shard : String) : Nil
         return unless deps = SHARDS[shard]?
 
         root = repo_root
-        target = root ? File.join(root, SHARDS[shard][0]) : nil
-        if target && File.exists?(target)
+        if root
           deps.each do |dep|
             name = dep.chomp(".cr") + "_cr"
             link = File.join("lib", name)
             next if File.exists?(link)
-            dep_target = File.join(root.not_nil!, dep)
-            next unless File.exists?(dep_target)
+            # Dev checkout: the framework shard's sibling dir; carat store:
+            # the root lib/ resolved by the crails shard's prebuild.
+            dep_target = {File.join(root, dep), File.join(root, "lib", name)}
+                           .find { |c| File.exists?(c) }
+            next unless dep_target
             FileUtils.mkdir_p("lib")
             gen.say("symlink", "lib/#{name}")
             File.symlink(dep_target, link) unless gen.pretend?

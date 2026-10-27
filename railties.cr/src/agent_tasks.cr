@@ -28,11 +28,14 @@ module CRails
       abort "ERROR: app/bots belongs in a CRails app (config/application.cr not found here)" \
         unless File.exists?(File.join(dir, "config/application.cr"))
 
-      # lib/action_bot_cr symlink (dev mode, like the App generator).
+      # lib/action_bot_cr symlink (dev checkout: the sibling dir; carat
+      # store: the root lib/ — like the App generator).
       symlink = File.join(dir, "lib", "action_bot_cr")
       unless File.exists?(symlink)
-        target = File.join(repo_root, "action_bot.cr")
-        abort "ERROR: #{target} not found (monorepo layout expected)" unless File.exists?(target)
+        target = {File.join(repo_root, "action_bot.cr"),
+                  File.join(repo_root, "lib", "action_bot_cr")}
+                   .find { |t| File.exists?(t) }
+        abort "ERROR: action_bot_cr not found in #{repo_root} (monorepo layout expected)" unless target
         FileUtils.mkdir_p(File.join(dir, "lib"))
         puts "      symlink lib/action_bot_cr"
         File.symlink(target, symlink)

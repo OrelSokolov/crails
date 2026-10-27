@@ -1,0 +1,61 @@
+# The distribution shard of the CRails monorepo: `carat install
+# OrelSokolov/crails` clones the repo, resolves the framework deps at the
+# root (prebuild) and builds the `crails` CLI from railties.cr/src.
+# The railties.cr/ sub-shard stays a normal library shard; binaries ship
+# from here so the installed package is named `crails`.
+name: crails
+version: 0.1.12
+crystal: ">= 1.21.0"
+description: Rails-port MVC framework on Crystal — the crails CLI and the full-stack framework
+license: MIT
+dependencies:
+  attr_reader_cr:
+    github: OrelSokolov/attr_reader.cr
+    version: ~> 0.1.0
+  active_support_cr:
+    github: OrelSokolov/active_support.cr
+    version: ~> 0.1.0
+  action_view_cr:
+    github: OrelSokolov/action_view.cr
+    version: ~> 0.1.0
+  action_pack_cr:
+    github: OrelSokolov/action_pack.cr
+    version: ~> 0.2.0
+  importmap_cr:
+    github: OrelSokolov/importmap.cr
+    version: ~> 0.1.0
+  propshaft_cr:
+    github: OrelSokolov/propshaft.cr
+    version: ~> 0.1.0
+  # propshaft_cr precompresses assets with brotli at the app's compile
+  # time; published propshaft tags resolve it transitively — declared
+  # here so the store lib/ always carries it for generated apps.
+  brotli:
+    github: OrelSokolov/brotli.cr
+    version: ~> 0.3.0
+  active_record_cr:
+    github: OrelSokolov/active_record.cr
+    version: ~> 0.1.0
+  erb_cr:
+    github: OrelSokolov/erb.cr
+    version: ~> 0.1.0
+  active_job_cr:
+    github: OrelSokolov/active_job.cr
+    version: ~> 0.1.0
+  action_cable_cr:
+    github: OrelSokolov/action_cable.cr
+    version: ~> 0.1.0
+  action_mailer_cr:
+    github: OrelSokolov/action_mailer.cr
+    version: ~> 0.1.0
+  action_mailbox_cr:
+    github: OrelSokolov/action_mailbox.cr
+    version: ~> 0.1.0
+  action_bot_cr:
+    github: OrelSokolov/action_bot.cr
+    version: ~> 0.1.0
+  icr:
+    github: OrelSokolov/icr.cr
+binaries:
+  crails:
+    main: railties.cr/src/crails_cli.cr
