@@ -18,10 +18,13 @@ module CRails
         abort "ERROR: #{dir} already exists" if File.exists?(dir)
 
         exe = Process.executable_path || abort("ERROR: cannot locate the crails binary")
-        railties_dir = File.dirname(File.dirname(exe)) # railties.cr/
-        repo_root = File.dirname(railties_dir)          # monorepo root
+        # The monorepo is located from the working directory (AppGlue.repo_root),
+        # not from the binary path — a carat-installed crails (~/.carat/bin)
+        # has no checkout around it, but `crails new` still runs from the repo.
+        repo_root = AppGlue.repo_root ||
+          abort "ERROR: no CRails monorepo above #{Dir.current} — run `crails new` from inside the checkout"
         rel = Path[repo_root].relative_to?(Path[dir]) ||
-          abort("ERROR: cannot compute relative path from #{dir} to #{repo_root}")
+          abort "ERROR: cannot compute relative path from #{dir} to #{repo_root}"
 
         puts "      create  #{@path}"
         dirs = [
@@ -37,7 +40,7 @@ module CRails
         # as ambiguous sources, so the app's shard.yml stays free of
         # framework dependencies.
         {"active_support.cr", "erb.cr", "action_view.cr", "action_pack.cr",
-         "active_record.cr", "railties.cr", "importmap.cr", "propshaft.cr"}.each do |shard|
+         "active_record.cr", "railties.cr", "importmap.cr", "propshaft_cr"}.each do |shard|
           target = File.join(dir, "lib", shard.gsub('.', "_"))
           # The symlink lives inside lib/, one level deeper than the app root.
           link_target = File.join(rel, "..", shard)
@@ -47,9 +50,12 @@ module CRails
 
         # Transitive shard deps installed inside the framework shards'
         # own lib/ dirs (active_record.cr needs db + pg, propshaft.cr
-        # needs brotli for .br precompression — at compile time).
-        {"active_record.cr/lib/db", "active_record.cr/lib/pg",
-         "propshaft.cr/lib/brotli"}.each do |dep|
+        # needs brotli for .br precompression — at compile time;
+        # railties_cr requires attr_reader_cr at compile time too).
+        {"railties.cr/lib/attr_reader_cr",
+         "active_record.cr/lib/db", "active_record.cr/lib/pg",
+         "active_record.cr/lib/sqlite3",
+         "propshaft_cr/lib/brotli"}.each do |dep|
           target = File.join(dir, "lib", File.basename(dep))
           next if File.exists?(target)
           link_target = File.join(rel, "..", dep)

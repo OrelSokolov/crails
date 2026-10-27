@@ -21,9 +21,8 @@ module CRails
       klass = klass + "Bot" unless klass.ends_with?("Bot")
       file_name = klass.underscore + ".cr"
 
-      exe = Process.executable_path || abort("ERROR: cannot locate the crails binary")
-      railties_dir = File.dirname(File.dirname(exe)) # railties.cr/
-      repo_root = File.dirname(railties_dir)          # monorepo root
+      repo_root = Generators::AppGlue.repo_root ||
+        abort "ERROR: no CRails monorepo above #{Dir.current} — the bot generator needs the dev checkout (lib symlink)"
 
       dir = Dir.current
       abort "ERROR: app/bots belongs in a CRails app (config/application.cr not found here)" \

@@ -157,19 +157,32 @@ require "../spec/mailers/previews/**"
 CRails.dev_endpoints["/rails/mailers"] = ->(ctx : HTTP::Server::Context) { ActionMailer::PreviewServer.serve?(ctx) }),
       }
 
+      # Monorepo checkout root, located from the working directory: walk
+      # up until a railties.cr shard appears. The binary's own location
+      # (railties.cr/bin, ./.carat/bin, ~/.carat/bin) says nothing about
+      # the checkout — a carat-installed crails must still find the repo
+      # it is launched from.
+      def self.repo_root : String?
+        dir = Dir.current
+        loop do
+          return dir if File.exists?(File.join(dir, "railties.cr", "shard.yml"))
+          parent = File.dirname(dir)
+          return nil if parent == dir
+          dir = parent
+        end
+      end
+
       def self.ensure_shard(gen : Base, shard : String) : Nil
         return unless deps = SHARDS[shard]?
 
-        exe = Process.executable_path
-        railties_dir = exe ? File.dirname(File.dirname(exe)) : nil
-        repo_root = railties_dir ? File.dirname(railties_dir.not_nil!) : nil
-        target = repo_root ? File.join(repo_root.not_nil!, SHARDS[shard][0]) : nil
+        root = repo_root
+        target = root ? File.join(root, SHARDS[shard][0]) : nil
         if target && File.exists?(target)
           deps.each do |dep|
             name = dep.chomp(".cr") + "_cr"
             link = File.join("lib", name)
             next if File.exists?(link)
-            dep_target = File.join(repo_root.not_nil!, dep)
+            dep_target = File.join(root.not_nil!, dep)
             next unless File.exists?(dep_target)
             FileUtils.mkdir_p("lib")
             gen.say("symlink", "lib/#{name}")
