@@ -25,3 +25,15 @@ dependencies:
 targets:
   crails:
     main: src/crails_cli.cr
+  console:
+    main: src/console.cr
+
+# carat delivery contract (https://github.com/OrelSokolov/carat):
+# `carat install` / `carat exec` build these into ./.carat/bin (project)
+# or ~/.carat/bin (global). shards ignores the section. flags:/link_flags:
+# selectors are per-OS ("*", linux/darwin/windows) — none needed here yet.
+binaries:
+  crails:
+    main: src/crails_cli.cr
+  console:
+    main: src/console.cr

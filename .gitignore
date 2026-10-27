@@ -4,6 +4,8 @@ lib/
 # --- скомпилированные бинарники (скрипты в bin/ — коммитим) ---
 *.dwarf
 railties.cr/bin/crails
+railties.cr/bin/console
+railties.cr/.carat/
 active_record.cr/bin/ar_schema_dump
 hello_world/hello/bin/app
 
