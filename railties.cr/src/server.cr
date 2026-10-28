@@ -9,12 +9,14 @@ module CRails
         port : String? = nil
         host : String? = nil
         env = "development"
+        force_build = false
         i = 0
         while i < args.size
           case args[i]
           when "-p", "--port" then port = args[i + 1]; i += 2
           when "-b", "--bind" then host = args[i + 1]; i += 2
           when "-e", "--env"  then env = args[i + 1]; i += 2
+          when "--build"      then force_build = true; i += 1
           else
             abort "ERROR: unknown option #{args[i]}"
           end
@@ -22,7 +24,7 @@ module CRails
 
         ENV["CRAILS_ENV"] = env
         release = env == "production"
-        Build.build(release) || abort("ERROR: build failed")
+        Build.build_if_needed(release, force_build) || abort("ERROR: build failed")
 
         app_args = ["serve"]
         app_args << "-p" << port if port

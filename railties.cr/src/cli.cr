@@ -45,11 +45,11 @@ module CRails
       when "new"       then Generators::App.run(argv[1]? || abort("Usage: crails new APP_PATH"))
       when "server", "s" then Server.run(argv[1..])
       when "console", "c" then Console.run(argv[1..])
-      when "routes"    then Build.ensure_app; Build.build_if_needed; run_app(["routes"])
+      when "routes"    then Build.ensure_app; Build.build_if_needed(force: argv.includes?("--build")); run_app(["routes"])
       when "credentials:show", "credentials:edit" then
-        Build.ensure_app; Build.build_if_needed; run_app(credentials_args(argv))
+        Build.ensure_app; Build.build_if_needed(force: argv.includes?("--build")); run_app(credentials_args(argv))
       when "secret"    then puts Random::Secure.hex(64)
-      when "middleware" then Build.ensure_app; Build.build_if_needed; run_app(["middleware"])
+      when "middleware" then Build.ensure_app; Build.build_if_needed(force: argv.includes?("--build")); run_app(["middleware"])
       when "watch"     then Watch.run(argv[1..])
       when "supervise" then Build.ensure_app; Build.build_if_needed; Supervisor.run(argv[1..])
       when "db", .starts_with?("db:") then DB.run(argv)
@@ -117,9 +117,10 @@ module CRails
 
       Commands:
         new APP_PATH   Generate a new application
-        server, s      Build and run the app (-p PORT, -b HOST, -e ENV)
+        server, s      Build and run the app (-p PORT, -b HOST, -e ENV;
+                       --build forces a rebuild)
         console, c     Rails-console analog on icr.cr (loads app + DB)
-        routes         Build (if needed) and list routes
+        routes         Build (if needed) and list routes (--build to force)
         middleware     List the middleware stack (rake middleware analog)
         watch          Rebuild + restart on source changes (dev loop)
         supervise      Run all Procfile roles under a supervisor

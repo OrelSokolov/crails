@@ -19,7 +19,7 @@ module CRails
           end
         end
 
-        Build.build || puts "!! initial build failed; waiting for changes"
+        Build.build_if_needed || puts "!! initial build failed; waiting for changes"
 
         child = start_server(app_args)
         Signal::INT.trap { stop(child); exit }
@@ -48,7 +48,7 @@ module CRails
       @@snapshot : Hash(String, Time)?
 
       private def self.changed? : Bool
-        files = Build::SOURCE_GLOBS.flat_map { |g| Dir.glob(g) }
+        files = ChangesChecker::SOURCE_GLOBS.flat_map { |g| Dir.glob(g) }
         current = {} of String => Time
         files.each { |f| current[f] = File.info(f).modification_time }
         previous = @@snapshot

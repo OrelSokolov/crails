@@ -1,10 +1,8 @@
+require "./changes_checker"
+
 module CRails
   module CLI
     module Build
-      # App sources that bin/app is compiled from (shared with `crails watch`).
-      SOURCE_GLOBS = ["src/**/*.cr", "config/**/*.cr", "app/**/*.cr",
-                      "app/**/*.erb", "shard.yml"]
-
       def self.ensure_app : Nil
         unless File.exists?("shard.yml") && File.exists?("src/app.cr")
           abort "ERROR: not in a CRails app (no shard.yml / src/app.cr). Run from the app root."
@@ -29,23 +27,11 @@ module CRails
         ok
       end
 
-      # True when bin/app is missing or any app source is newer than the
-      # binary (mtime check, no recompile needed otherwise).
-      def self.stale? : Bool
-        return true unless File.exists?("bin/app")
-        bin_time = File.info("bin/app").modification_time
-        SOURCE_GLOBS.each do |glob|
-          Dir.glob(glob).each do |file|
-            return true if File.info(file).modification_time > bin_time
-          end
-        end
-        false
-      end
-
-      # Builds bin/app only when sources changed since the last build.
-      # Returns true when the binary is already up to date.
-      def self.build_if_needed(release : Bool = false) : Bool
-        return true unless stale?
+      # Builds bin/app only when app sources or dependencies changed since
+      # the last build (see ChangesChecker). Returns true when the binary
+      # is already up to date. `force` rebuilds unconditionally (--build).
+      def self.build_if_needed(release : Bool = false, force : Bool = false) : Bool
+        return true if !force && !ChangesChecker.changed?
         build(release)
       end
     end
