@@ -117,11 +117,16 @@ module CRails
         unless src.includes?("establish_connection")
           anchor = "CRails.application.initialize!"
           block = <<-CODE
-            if (url = ENV["DATABASE_URL"]?)
-              ActiveRecord::Base.establish_connection(url)
-            elsif File.exists?("config/database.yml")
-              ActiveRecord::Base.establish_connection_from_yaml(
-                "config/database.yml", CRails.env.to_s.downcase)
+            begin
+              if (url = ENV["DATABASE_URL"]?)
+                ActiveRecord::Base.establish_connection(url)
+              elsif File.exists?("config/database.yml")
+                ActiveRecord::Base.establish_connection_from_yaml(
+                  "config/database.yml", CRails.env.to_s.downcase)
+              end
+            rescue ex : ActiveRecord::ConnectionNotEstablished
+              abort "Database connection failed: \#{ex.message}\\n" \\
+                    "Run `bin/crails db:create` and `bin/crails db:migrate` first."
             end
 
             CODE

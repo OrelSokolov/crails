@@ -310,11 +310,19 @@ module CRails
         require "../app/controllers/**"
         require "../config/routes"
 
-        if (url = ENV["DATABASE_URL"]?)
-          ActiveRecord::Base.establish_connection(url)
-        elsif File.exists?("config/database.yml")
-          ActiveRecord::Base.establish_connection_from_yaml(
-            "config/database.yml", CRails.env.to_s.downcase)
+        # Like Rails, the console boots even without a database — the
+        # connection failure becomes a warning; models raise on first use.
+        begin
+          if (url = ENV["DATABASE_URL"]?)
+            ActiveRecord::Base.establish_connection(url)
+          elsif File.exists?("config/database.yml")
+            ActiveRecord::Base.establish_connection_from_yaml(
+              "config/database.yml", CRails.env.to_s.downcase)
+          end
+        rescue ex : ActiveRecord::ConnectionNotEstablished
+          puts "WARNING: \#{ex.message}"
+          puts "The console is up, but models need the database:"
+          puts "  bin/crails db:create && bin/crails db:migrate"
         end
         CODE
       end

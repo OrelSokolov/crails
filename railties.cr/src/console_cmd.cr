@@ -61,16 +61,21 @@ module CRails
 
         puts "Loading #{env} environment (CRails #{CRails::VERSION}, Crystal #{Crystal::VERSION}, icr #{Icr::VERSION} — #{mode})"
 
-        boot = io.submit(prelude)
-        # The prelude require produces no output on success; a live
-        # session renders it as "=> nil". Anything else is an app-load
-        # error.
-        if (msg = boot.presence) && msg != "=> nil"
-          STDERR.puts msg
+        boot_ok, boot_msg = io.submit_with_status(prelude)
+        # A failed prelude (app-load error) kills the console; a clean
+        # boot may still print warnings — e.g. the no-database notice
+        # from src/console.cr (the console itself stays usable, like
+        # Rails). Replay diffs boot stdout away on later lines, so the
+        # warning is shown exactly once.
+        unless boot_ok
+          STDERR.puts boot_msg
           STDERR.puts "ERROR: could not load the application (see above)"
           io.close if io.is_a?(Icr::LiveSession)
           exit 1
         end
+        boot_lines = boot_msg.lines
+        boot_lines.pop if boot_lines.last?.try(&.starts_with?("=>"))
+        puts boot_lines.join('\n') unless boot_lines.empty?
 
         short_env = case env
                     when "development" then "dev"
