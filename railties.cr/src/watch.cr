@@ -5,9 +5,6 @@ module CRails
     # `crails watch` — the dev loop replacement for Rails reloading:
     # poll sources, rebuild the binary and restart the server on change.
     module Watch
-      WATCH_GLOBS = ["src/**/*.cr", "config/**/*.cr", "app/**/*.cr",
-                     "app/**/*.erb", "shard.yml"]
-
       def self.run(args : Array(String)) : Nil
         Build.ensure_app
 
@@ -51,7 +48,7 @@ module CRails
       @@snapshot : Hash(String, Time)?
 
       private def self.changed? : Bool
-        files = WATCH_GLOBS.flat_map { |g| Dir.glob(g) }
+        files = Build::SOURCE_GLOBS.flat_map { |g| Dir.glob(g) }
         current = {} of String => Time
         files.each { |f| current[f] = File.info(f).modification_time }
         previous = @@snapshot
