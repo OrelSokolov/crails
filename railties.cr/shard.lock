@@ -31,7 +31,7 @@ shards:
 
   icr:
     git: https://github.com/orelsokolov/icr.cr.git
-    version: 1.3.0
+    version: 1.8.0
 
   importmap_cr: # Overridden
     path: ../importmap.cr
