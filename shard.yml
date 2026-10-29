@@ -56,6 +56,11 @@ dependencies:
     version: ~> 0.1.0
   icr:
     github: OrelSokolov/icr.cr
+  # crails watch — dev-loop file watcher (railties_cr dep; declared here
+  # so the root prebuild resolves it, like every other framework dep)
+  project_watch:
+    github: OrelSokolov/project_watch.cr
+    version: ~> 0.1.0
 binaries:
   crails:
     main: railties.cr/src/crails_cli.cr
