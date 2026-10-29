@@ -29,6 +29,10 @@ shards:
     path: ../erb.cr
     version: 0.1.0
 
+  fswatch:
+    git: https://github.com/orelsokolov/fswatch.cr.git
+    version: 0.1.0+git.commit.b77d1386aef561e5604ee7869920684464e21b57
+
   icr:
     git: https://github.com/orelsokolov/icr.cr.git
     version: 1.8.0
@@ -40,6 +44,10 @@ shards:
   pg:
     git: https://github.com/will/crystal-pg.git
     version: 0.31.0
+
+  project_watch:
+    git: https://github.com/orelsokolov/project_watch.cr.git
+    version: 0.1.0+git.commit.f94ad990e1bf56f4cfb2e29fdc54294ecf385fa8
 
   propshaft_cr: # Overridden
     path: ../propshaft_cr

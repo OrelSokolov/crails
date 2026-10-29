@@ -484,6 +484,8 @@ module CRails
         <<-TEXT
         /lib/
         /bin/app
+        /bin/.app.next
+        /bin/.app.lkg
         /.shards/
         /config/master.key
         TEXT

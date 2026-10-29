@@ -22,6 +22,8 @@ dependencies:
     version: ~> 0.1.0
   icr:
     github: OrelSokolov/icr.cr
+  project_watch:
+    github: OrelSokolov/project_watch.cr
 targets:
   crails:
     main: src/crails_cli.cr
