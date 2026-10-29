@@ -4,7 +4,7 @@
 # The railties.cr/ sub-shard stays a normal library shard; binaries ship
 # from here so the installed package is named `crails`.
 name: crails
-version: 0.1.12
+version: 0.1.13
 crystal: ">= 1.21.0"
 description: Rails-port MVC framework on Crystal — the crails CLI and the full-stack framework
 license: MIT
