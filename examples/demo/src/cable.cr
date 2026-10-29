@@ -9,25 +9,36 @@ require "json"
 # поэтому публичный метод #square и становится RPC-эндпоинтом канала.
 class ChatChannel < ActionCable::Channel::Base
   def subscribed : Nil
-    reply("Привет! Напишите число — возведу его в квадрат.")
+    reply("Hi! Send me a number and I will square it.")
   end
+
+  # Порог «слишком большое»: выше квадрат уже не представим точно
+  # (Int64 переполняется уже на 3.0e9²), отдаем ошибку, а не Infinity.
+  MAX_INPUT = 1e15
 
   def square(data : Hash(String, String)) : Nil
     raw = data["number"]?.to_s.strip
-    if raw.to_f? && !raw.empty?
-      n = raw.to_f.not_nil!
-      sq = n * n
-      answer = sq.floor == sq ? sq.floor.to_i64.to_s : sq.round(6).to_s
-      reply("#{fmt_in(raw)}² = #{answer}")
+    n = raw.to_f?
+    if n.nil? || raw.empty?
+      reply("“#{raw}” is not a number. Try, for example: 12 or 3.5")
+    elsif n.abs > MAX_INPUT
+      reply("“#{raw}” is too large — I square numbers up to 10¹⁵")
     else
-      reply("«#{raw}» — не число. Попробуйте, например: 12 или 3.5")
+      sq = n * n
+      answer =
+        if sq.floor == sq && sq.abs <= Int64::MAX.to_f64
+          sq.floor.to_i64.to_s
+        else
+          sq.round(6).to_s
+        end
+      reply("#{fmt_in(raw)}² = #{answer}")
     end
   end
 
-  # CableValue is a recursive alias — hash literals don't infer into it,
-  # so bot replies go through JSON::Any (which the alias includes).
+  # CableValue — рекурсивный алиас, литералы в него не инферятся:
+  # тип указываем явно (включая ключ String | Symbol).
   private def reply(text : String) : Nil
-    transmit(JSON.parse({"from" => "bot", "text" => text}.to_json))
+    transmit({"from" => "bot", "text" => text} of String | Symbol => ActionCable::CableValue)
   end
 
   private def fmt_in(raw : String) : String

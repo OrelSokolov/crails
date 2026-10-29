@@ -23,8 +23,8 @@ class LiveController < ApplicationController
 
   # Vendored JS bundles (phoenix.min.js / phoenix_live_view.min.js),
   # embedded into the binary at compile time.
-  PHOENIX_JS = {{ read_file("../live_view.cr/assets/phoenix.min.js") }}
-  PHOENIX_LV_JS = {{ read_file("../live_view.cr/assets/phoenix_live_view.min.js") }}
+  PHOENIX_JS = {{ read_file("lib/live_view_cr/assets/phoenix.min.js") }}
+  PHOENIX_LV_JS = {{ read_file("lib/live_view_cr/assets/phoenix_live_view.min.js") }}
 
   def asset
     case params["file"].to_s

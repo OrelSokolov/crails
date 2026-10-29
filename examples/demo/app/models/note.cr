@@ -8,12 +8,17 @@ class Note < ActiveRecord::Base
 
   validates :title, presence: true, length: {maximum: 140}
 
+  # Дефолты новых записей (БД-дефолта в схеме нет): цвет карточки и
+  # стартовое значение счётчика просмотров.
+  attribute :color, default: "sky"
+  attribute :views, default: 0
+
   COLORS = {"amber", "rose", "sky", "emerald", "violet"}
 
   def snippet : String
     body = self.body.to_s
     stripped = body.gsub(/\s+/, " ").strip
-    stripped.empty? ? "Без описания" : stripped.truncate(160)
+    stripped.empty? ? "No description" : stripped.truncate(160)
   end
 
   def color_class : String

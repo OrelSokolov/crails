@@ -1,4 +1,4 @@
-<a class="note-card c-<%= note.color_class %>" href="/notes/<%= note.id %>">
+<a class="note-card c-<%= note.color_class %>" href="<%= note_path(note) %>">
   <span class="strip"></span>
   <h3><%= note.title %></h3>
   <div class="snippet"><%= note.snippet %></div>

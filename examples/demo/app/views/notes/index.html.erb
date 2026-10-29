@@ -1,14 +1,14 @@
 <%= turbo_stream_from "notes" %>
 <div class="hero">
-  <h1>Заметки на CRails</h1>
-  <p>Мини-блог на порте Rails для Crystal: PostgreSQL + ActiveRecord-валидации,
-     ERB-шаблоны с партиалами, flash-сообщения и счётчик просмотров.
-     Создайте заметку — <code>POST /notes</code> попадёт в базу через весь стек,
-     а открытые страницы обновятся по Turbo Streams через <code>/cable</code>.</p>
+  <h1>Notes on CRails</h1>
+  <p>A mini-blog on the Rails port for Crystal: PostgreSQL + ActiveRecord
+     validations, ERB templates with partials, flash messages and a view
+     counter. Create a note — the <code>POST /notes</code> goes through the whole
+     stack, and open pages update over Turbo Streams via <code>/cable</code>.</p>
 </div>
 <% if @notes.empty? %>
 <div class="empty">
-  Пока пусто. <a href="/notes/new">Создайте первую заметку</a>.
+  Nothing here yet. <a href="<%= new_note_path %>">Create the first note</a>.
 </div>
 <% else %>
 <div class="grid" id="notes">

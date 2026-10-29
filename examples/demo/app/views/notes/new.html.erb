@@ -1,11 +1,11 @@
-<% note = @note %>
-<a class="backlink" href="/notes">← Все заметки</a>
+<% note = @note.not_nil! %>
+<a class="backlink" href="<%= notes_path %>">← All notes</a>
 <div class="article">
-  <h1>Новая заметка</h1>
-  <div class="meta">Валидации модели — как в Rails: presence и длину проверит active_record.cr</div>
-<% if note && !note.errors.empty? %>
+  <h1>New note</h1>
+  <div class="meta">Model validations work like Rails: presence and length are enforced by active_record.cr</div>
+<% unless note.errors.empty? %>
   <div class="errors" style="margin-top: 22px">
-    Не получилось сохранить:
+    Could not save the note:
     <ul>
     <% note.errors.full_messages.each do |msg| %>
       <li><%= msg %></li>
@@ -14,26 +14,23 @@
   </div>
 <% end %>
   <div style="height: 26px"></div>
-<% current_color = note.try(&.color.to_s) %>
-  <form action="/notes" accept-charset="UTF-8" method="post" class="stack">
+  <%= form_with model: note, class: "stack" do |f| %>
     <div class="field">
-      <label for="title">Заголовок</label>
-      <input type="text" name="title" id="title" value="<%= note.try(&.title).to_s %>" maxlength="140" placeholder="О чём заметка?" autofocus />
+      <%= f.label :title, "Title" %>
+      <%= f.text_field :title, maxlength: 140, placeholder: "What is this note about?", autofocus: true %>
     </div>
     <div class="field">
-      <label for="body">Текст</label>
-      <textarea name="body" id="body" placeholder="Можно писать свободным текстом…"><%= note.try(&.body).to_s %></textarea>
+      <%= f.label :body, "Text" %>
+      <%= f.text_area :body, placeholder: "Write freely…" %>
     </div>
     <div class="field">
-      <label>Цвет</label>
+      <label>Color</label>
       <div class="swatches">
-        <label><input type="radio" name="color" value="amber" <%= current_color == "amber" ? "checked" : "" %> /><span class="sw sw-amber"></span></label>
-        <label><input type="radio" name="color" value="rose" <%= current_color == "rose" ? "checked" : "" %> /><span class="sw sw-rose"></span></label>
-        <label><input type="radio" name="color" value="sky" <%= (current_color.nil? || current_color == "sky") ? "checked" : "" %> /><span class="sw sw-sky"></span></label>
-        <label><input type="radio" name="color" value="emerald" <%= current_color == "emerald" ? "checked" : "" %> /><span class="sw sw-emerald"></span></label>
-        <label><input type="radio" name="color" value="violet" <%= current_color == "violet" ? "checked" : "" %> /><span class="sw sw-violet"></span></label>
+        <% Note::COLORS.each do |color| %>
+          <label><%= f.radio_button :color, color %><span class="sw sw-<%= color %>"></span></label>
+        <% end %>
       </div>
     </div>
-    <button type="submit" class="submit">Создать заметку</button>
-  </form>
+    <%= f.submit "Create note", class: "btn primary" %>
+  <% end %>
 </div>

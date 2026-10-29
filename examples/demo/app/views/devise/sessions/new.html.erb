@@ -1,0 +1,16 @@
+<div class="panel" style="max-width: 440px; margin: 4vh auto">
+  <h1>Sign in</h1>
+  <div class="sub">Passwords are handled by devise.cr — bcrypt with pepper, as in Rails.</div>
+  <%= form_with url: user_session_path, scope: "user", class: "stack" do |f| %>
+    <div class="field">
+      <%= f.label :email, "Email" %>
+      <%= f.email_field :email, placeholder: "you@example.com", autofocus: true %>
+    </div>
+    <div class="field">
+      <%= f.label :password, "Password" %>
+      <%= f.password_field :password, placeholder: "••••••••" %>
+    </div>
+    <%= f.submit "Sign in", class: "btn primary" %>
+  <% end %>
+  <div class="auth-alt">No account? <a href="<%= signup_path %>">Sign up</a></div>
+</div>

@@ -13,3 +13,7 @@ class Application < CRails::Application
 end
 
 CRails.application = Application.new
+
+# Rails 8 defaults (load_defaults 8.x): локальные формы + генерация id полей.
+ActionView::Helpers::FormHelper.form_with_generates_remote_forms = false
+ActionView::Helpers::FormHelper.form_with_generates_ids = true

@@ -5,6 +5,7 @@
 
 class TurboRenderer
   include ActionView::Helpers
+  include CRails::Routes::UrlHelpers # note_path в партиале при broadcast-рендере
 
   compile_partials({
     "notes/note" => {path: "app/views/notes/_note.html.erb", locals: {"note" => Note}},

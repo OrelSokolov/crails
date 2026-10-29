@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -240,8 +240,8 @@
     <header>
       <a class="brand" href="/"><span class="dot"></span>CRails <small>Notes</small></a>
       <nav>
-        <a class="navlink" href="/notes">Заметки</a>
-        <a class="navlink" href="/chat">Чат-бот</a>
+        <a class="navlink" href="<%= notes_path %>">Notes</a>
+        <a class="navlink" href="<%= chat_path %>">Chat bot</a>
 <%# Сужение до User: у framework-контроллеров (devise-хелперы на
     ActionController::Base) current_user : ActiveRecord::Base+?, где
     нет email/initials/name — компилируется в контексте каждого
@@ -250,14 +250,14 @@
 <% if user %>
         <span class="sep"></span>
         <div class="userbox">
-          <a class="avatar" href="/profile" title="<%= user.email %>"><%= user.initials %></a>
-          <a class="navlink" href="/profile"><%= user.name %></a>
-          <%= button_to "Выйти", "/logout", class: "btn-link", data: {"confirm" => "Выйти из аккаунта?"} %>
+          <a class="avatar" href="<%= profile_path %>" title="<%= user.email %>"><%= user.initials %></a>
+          <a class="navlink" href="<%= profile_path %>"><%= user.name %></a>
+          <%= button_to "Sign out", destroy_user_session_path, method: "delete", class: "btn-link", data: {"confirm" => "Sign out of your account?"} %>
         </div>
 <% else %>
         <span class="sep"></span>
-        <a class="navlink" href="/login">Вход</a>
-        <a class="btn" href="/signup">Регистрация</a>
+        <a class="navlink" href="<%= new_user_session_path %>">Sign in</a>
+        <a class="btn" href="<%= signup_path %>">Sign up</a>
 <% end %>
       </nav>
     </header>
@@ -272,7 +272,7 @@
         <%= yield %>
       </div>
     </main>
-    <footer>Собрано на <b>CRails</b> — порт Rails на Crystal: railties · action_pack · action_view · active_record · action_cable · active_job · turbo · devise</footer>
+    <footer>Built with <b>CRails</b> — a Rails port for Crystal: railties · action_pack · action_view · active_record · action_cable · active_job · turbo · devise</footer>
     <script src="/assets/turbo.js" defer></script>
     <script src="/assets/turbo_cable.js" defer></script>
     <script>

@@ -1,15 +1,16 @@
 <div class="hero" style="margin-bottom: 20px">
-  <h1>Чат с ботом <span style="color: var(--faint); font-weight: 400; font-size: .6em">через WebSocket</span></h1>
-  <p>Соединение живёт на <code>/cable</code> — ActionCable-порте на Crystal.
-     Напишите число, бот ответит его квадратом. Регистрация не нужна.</p>
+  <h1>Chat with a bot <span style="color: var(--faint); font-weight: 400; font-size: .6em">over WebSocket</span></h1>
+  <p>The connection lives on <code>/cable</code> — the ActionCable port for
+     Crystal. Send a number and the bot replies with its square. No account
+     needed.</p>
 </div>
 <div class="chat-wrap panel wide" style="padding: 0; overflow: hidden">
   <div class="chat-log" id="log">
-    <div class="msg sys" id="status"><span class="dot-online"></span>&nbsp;подключение…</div>
+    <div class="msg sys" id="status"><span class="dot-online"></span>&nbsp;connecting…</div>
   </div>
   <form class="chat-form" id="form">
-    <input type="text" id="input" placeholder="Например: 12 или 3.5" autocomplete="off" autofocus />
-    <button type="submit" class="btn primary">Отправить</button>
+    <input type="text" id="input" placeholder="Try: 12 or 3.5" autocomplete="off" autofocus />
+    <button type="submit" class="btn primary">Send</button>
   </form>
 </div>
 <% provide :page_js do %>
@@ -26,7 +27,7 @@
       row.className = "msg " + kind;
       var who = document.createElement("span");
       who.className = "who";
-      who.textContent = kind === "user" ? "я" : "бот";
+      who.textContent = kind === "user" ? "me" : "bot";
       var bubble = document.createElement("div");
       bubble.className = "bubble";
       bubble.textContent = text;
@@ -41,10 +42,10 @@
 
     ws.onopen = function () {
       send({command: "subscribe", identifier: IDENT});
-      status.innerHTML = '<span class="dot-online on"></span>&nbsp;соединение установлено';
+      status.innerHTML = '<span class="dot-online on"></span>&nbsp;connected';
     };
     ws.onclose = function () {
-      status.innerHTML = '<span class="dot-online"></span>&nbsp;соединение потеряно — обновите страницу';
+      status.innerHTML = '<span class="dot-online"></span>&nbsp;connection lost — reload the page';
     };
     ws.onmessage = function (event) {
       var frame = JSON.parse(event.data);

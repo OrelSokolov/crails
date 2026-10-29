@@ -1,4 +1,5 @@
 #!/bin/sh
 # CRails dev CLI wrapper (generated; points at the crails binary).
 # Relative to the repo root, so the checkout path doesn't matter.
-exec "$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)/railties.cr/bin/crails" "$@"
+CRAILS_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
+exec "$CRAILS_ROOT/railties.cr/bin/crails" "$@"
