@@ -28,7 +28,18 @@ end
 # CRails — the `Rails` module equivalent (the `CRails` namespace is the
 # only intentional 1:1 difference, see ../PLAN.md).
 module CRails
-  VERSION = "0.1.0"
+  # Версия подтягивается из shard.yml при компиляции — единственный
+  # источник правды, ручной копии для синхронизации нет. Пути привязаны
+  # к __DIR__ (read_file? резолвит относительные пути от CWD компилятора):
+  # сначала distribution-манифест в корне монорепо (сборка CLI и
+  # приложения с шардом `crails`), затем собственный railties.cr/shard.yml
+  # (когда railties_cr ставится в приложение библиотекой).
+  VERSION = {{ begin
+    manifest = read_file?("#{__DIR__}/../../shard.yml") || read_file?("#{__DIR__}/../shard.yml") || ""
+    line = manifest.lines.find { |l| l.starts_with?("version:") }
+    line || raise("src/railties_cr.cr: no `version:` found in shard.yml next to the sources")
+    line.split(":")[1].strip
+  end }}
 
   enum Env
     Development
