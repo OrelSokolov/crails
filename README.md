@@ -87,11 +87,7 @@ the end interface — so that a developer moving from Ruby/Rails feels no
 difference. Goal: Rails application code ports to Crystal nearly
 verbatim.
 
-**The only namespace difference: `CRails` instead of `Rails`.**
-
-- `CRails.application`, `CRails.env`, `CRails.root`, `CRails.logger` —
-  as `Rails.*` was in Rails.
-- ERB → ECR (the only visible substitution — the language is different).
-- Commands: `crails` instead of `rails` (`crails new`, `crails server`,
-  `crails generate`, `crails console`, `crails routes`,
-  `crails db:migrate`).
+The practical differences from Ruby on Rails — the `CRails` namespace,
+ERB → ECR, the `crails` command, nilable finders, keyword arguments,
+type narrowing and other consequences of Crystal's static typing —
+are collected in **[DIFFERENCES.md](DIFFERENCES.md)**.
