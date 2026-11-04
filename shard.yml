@@ -1,14 +1,17 @@
 # The distribution shard of the CRails monorepo: `carat install
 # OrelSokolov/crails` clones the repo, resolves the framework deps at the
-# root (prebuild) and builds the `crails` CLI from railties.cr/src.
-# The railties.cr/ sub-shard stays a normal library shard; binaries ship
-# from here so the installed package is named `crails`.
+# root (prebuild) and builds the `crails` CLI from the src/crails_cli.cr
+# shim over the railties_cr library. Framework shards (railties included)
+# live in their own OrelSokolov/*.cr repos and resolve from GitHub tags.
 name: crails
 version: 0.1.13
 crystal: ">= 1.21.0"
 description: Rails-port MVC framework on Crystal — the crails CLI and the full-stack framework
 license: MIT
 dependencies:
+  railties_cr:
+    github: OrelSokolov/railties.cr
+    version: ~> 0.1.18
   attr_reader_cr:
     github: OrelSokolov/attr_reader.cr
     version: ~> 0.1.0
@@ -48,4 +51,9 @@ dependencies:
     version: ~> 0.1.0
 binaries:
   crails:
-    main: railties.cr/src/crails_cli.cr
+    main: src/crails_cli.cr
+# Дублируем для обычного shards build (carat игнорирует targets,
+# shards не знает binaries).
+targets:
+  crails:
+    main: src/crails_cli.cr

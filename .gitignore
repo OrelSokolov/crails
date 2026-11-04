@@ -3,7 +3,7 @@ lib/
 
 # --- скомпилированные бинарники (скрипты в bin/ — коммитим) ---
 *.dwarf
-railties.cr/bin/crails
+bin/crails
 .carat/
 shard.lock
 
@@ -18,12 +18,5 @@ shard.lock
 
 # --- артефакты спек/бенчей (Iteration 3+) ---
 bench/rails_hello/tmp/
-railties.cr/tmp/
 tmp/
 *.log
-
-# --- propshaft_cr: оракул-гемы и артефакты реверс-прогонов ---
-.oracle-gems/
-propshaft_cr/oracle/propshaft_fixture/
-propshaft_cr/oracle/reverse_fixture/
-propshaft_cr/oracle/reverse_port_output/

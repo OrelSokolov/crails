@@ -55,7 +55,7 @@ Base (resolved by the root `shard.yml`):
 - [importmap.cr](https://github.com/OrelSokolov/importmap.cr) — importmap-based JS assets
 - [propshaft.cr](https://github.com/OrelSokolov/propshaft.cr) — asset pipeline (+ [brotli.cr](https://github.com/OrelSokolov/brotli.cr) precompression)
 - [active_record.cr](https://github.com/OrelSokolov/active_record.cr) — ORM, migrations, adapters (db/pg/sqlite3)
-- [railties.cr](https://github.com/OrelSokolov/railties.cr) — the `crails` CLI, generators, app glue (lives in this repo at `railties.cr/`)
+- [railties.cr](https://github.com/OrelSokolov/railties.cr) — the `crails` CLI, generators, app glue
 - [icr.cr](https://github.com/OrelSokolov/icr.cr) — `crails console`
 - [project_watch.cr](https://github.com/OrelSokolov/project_watch.cr) — `crails watch`
 
