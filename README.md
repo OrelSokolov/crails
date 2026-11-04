@@ -62,29 +62,38 @@ An API portability study (against real Rails 8.2 code): ~85–90% of
 daily-use API ports with a 1:1 feel — full report:
 `/home/oleg/egui.cr/plans/crails-api-research.md`.
 
-### Performance: basic Hello page (no DB), head-to-head
+### Performance: ONCE Campfire port, official verification harness
 
-Two minimal applications — route `/` → controller → `render plain: "Hello"`,
-no database, no templates, no ORM. Both in production mode, one machine,
-`wrk -t4 -c100 -d15s` after warm-up. CRails — `crystal build --release`
-(a 5.4 MB native binary, full middleware stack: request-id, secure
-headers, logging). Rails 8.1.4 — default Puma 8.0.2 (1 process × 3
-threads), Ruby 3.4.5. Reproduction: `~/crails_compare/bench.sh`, full
-report: `~/crails_compare/RESULTS.md`.
+A full port of ONCE Campfire to CRails —
+[once-campfire-crails](https://github.com/OrelSokolov/once-campfire-crails) —
+measured with the official
+[once-campfire-verification](https://github.com/basecamp/once-campfire-verification)
+harness: median RPS of 3 rounds × 16 concurrent clients, seed database,
+every response validated against the route contract. CRails is #1 on
+every measured GET route on both stands, C and Elixir included.
 
-| Metric | CRails 0.1.0 (Crystal 1.21) | Rails 8.1.4 (Ruby 3.4.5) |
-|---|---|---|
-| **RPS** | **~50,000–52,000** | **~390–470** |
-| Latency (avg) | ~2 ms | 211–256 ms |
-| RSS idle | 11 MB | 99–100 MB |
-| RSS under load (peak) | 17 MB | 101–102 MB |
-| Socket errors / non-2xx | 0 | 0 |
+AMD Ryzen 9 3900X stand (12 cores / 24 threads; server pinned to 4
+hardware threads, load generator on separate cores; same seed database
+and methodology for all seven apps):
 
-A **100×+ boost in RPS** at **6–9× less memory** (two independent runs,
-reproducible). Rails hits the wall of Puma's default 3 threads: 200+ ms
-latency is the connection queue. More workers/threads will raise RPS,
-but at the cost of a multiple in RAM (~100 MB per process vs. 11–17 MB
-for the entire CRails application).
+| Route | Rails | Express | Go | Rust | C | Elixir | CRails |
+|---|---|---|---|---|---|---|---|
+| room_show | 1 731 | 10 430 | 14 316 | 21 953 | 31 698 | 2 346 | **38 092** |
+| messages_page | 1 641 | 16 248 | 14 336 | 21 539 | 32 114 | 2 480 | **37 553** |
+| sidebar | 1 804 | 19 979 | 14 945 | 24 411 | 34 857 | 2 566 | **52 299** |
+| search | 1 801 | 17 764 | 15 988 | 25 113 | 33 460 | 2 522 | **48 930** |
+| avatar | 28 046 | 40 989 | 48 656 | 74 442 | 18 920 | 31 896 | **76 669** |
+| static_css | 37 048 | 42 843 | 59 413 | 72 389 | 37 095 | 36 788 | **75 962** |
+| /up | 2 571 | 20 531 | 29 238 | 36 557 | 62 890 | 4 230 | **82 265** |
+| post_message | 166 | 1 015 | 2 442 | 2 935 | 1 303 | 556 | 2 033 |
+
+The post_message row is not equivalent across apps: Express and CRails
+persist every notification job into the leased-SQLite queue before
+responding, while Rust and Go run jobs in in-memory queues that lose
+work on a crash — that durability guarantee costs RPS on this route.
+Full methodology, the laptop-stand results and the per-implementation
+architecture breakdown (transport, caches, DB layer):
+[once-campfire-crails README](https://github.com/OrelSokolov/once-campfire-crails#benchmark-results).
 
 ## Shards
 
