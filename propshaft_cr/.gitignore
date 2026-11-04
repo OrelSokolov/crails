@@ -1,8 +1,0 @@
-/lib/
-/.shards/
-/tmp/
-*.dwarf
-/.crystal/
-/shard.lock
-/shard.override.yml
-*.log

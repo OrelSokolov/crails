@@ -55,10 +55,10 @@ module CRails
         # The framework shards live in their own repos and resolve into the
         # root lib/ (dev checkout: shards install of the crails shard;
         # carat-installed monorepo ~/.carat/shards/crails/<ver>/: prebuild
-        # does the same). Only railties.cr/ and propshaft_cr/ are real dirs
-        # here. First existing source wins; shards treats duplicate path
-        # deps across the graph as ambiguous sources, so the app's
-        # shard.yml stays free of framework dependencies.
+        # does the same). Only railties.cr/ is a real dir here. First
+        # existing source wins; shards treats duplicate path deps across
+        # the graph as ambiguous sources, so the app's shard.yml stays
+        # free of framework dependencies.
         {"active_support_cr" => {"lib/active_support_cr"},
          "attr_reader_cr"    => {"railties.cr/lib/attr_reader_cr", "lib/attr_reader_cr"},
          "erb_cr"            => {"lib/erb_cr"},
@@ -67,11 +67,11 @@ module CRails
          "active_record_cr"  => {"lib/active_record_cr"},
          "railties_cr"       => {"railties.cr"},
          "importmap_cr"      => {"lib/importmap_cr"},
-         "propshaft_cr"      => {"propshaft_cr", "lib/propshaft_cr"},
+         "propshaft_cr"      => {"lib/propshaft_cr"},
          "db"                => {"lib/db"},
          "pg"                => {"lib/pg"},
          "sqlite3"           => {"lib/sqlite3"},
-         "brotli"            => {"propshaft_cr/lib/brotli", "lib/brotli"}}.each do |name, candidates|
+         "brotli"            => {"lib/brotli"}}.each do |name, candidates|
           target = File.join(dir, "lib", name)
           next if File.exists?(target)
           candidate = candidates.find { |c| File.exists?(File.join(repo_root, c)) } || next

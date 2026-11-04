@@ -14,7 +14,9 @@ require "../src/railties_cr"
 
 CSRF_EXPECTED = begin
   hash = {} of String => String
-  File.read("#{__DIR__}/../../action_pack.cr/oracle/csrf_expected.yml").each_line do |line|
+  # action_pack.cr/oracle moved with the shard: the oracle now lives in
+  # the installed dependency copy (root lib/, populated by shards install).
+  File.read("#{__DIR__}/../../lib/action_pack_cr/oracle/csrf_expected.yml").each_line do |line|
     next unless line.includes?('\t')
     id, value = line.split('\t', 2)
     hash[id] = value.chomp

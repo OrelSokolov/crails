@@ -4,20 +4,18 @@
 #                   # demo app server binary
 #   rake build:cli  # railties.cr/bin/crails only
 #   rake build:app  # examples/hello_world/hello/bin/app only
-#   rake spec       # shard test suites (railties, propshaft)
+#   rake spec       # shard test suites (railties)
 #
 # Run the app:  ./bin/server   |  ./bin/console
 #
 # Framework shards live in their own OrelSokolov/*.cr repos and resolve
-# from GitHub tags via shard.yml; only railties.cr/ and propshaft_cr/
-# are developed here.
+# from GitHub tags via shard.yml; only railties.cr/ is developed here.
 
 ROOT = File.expand_path(__dir__)
 APP  = File.join(ROOT, "examples", "hello_world", "hello")
 
 SHARDS = %w[
   railties.cr
-  propshaft_cr
 ]
 
 task default: :build
