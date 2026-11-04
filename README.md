@@ -19,6 +19,30 @@ framework intends to keep — lives in **[IDEA.md](IDEA.md)**. It is
 effectively a roadmap and a promise for the future, not a description
 of what is already implemented.
 
+## Desktop and mobile now! ![NEW](https://img.shields.io/badge/NEW!-full_fullstack-2ea44f?style=for-the-badge&labelColor=0f0f0f)
+
+CRails doesn't end at the server. With
+[positron.cr](https://github.com/OrelSokolov/positron.cr) the same stack
+ships **desktop and mobile** applications — go desktop, go mobile:
+
+- the backend is a regular CRails application;
+- the frontend is still plain HTML + CSS;
+- all data work — models, queries, validations — lives on ActiveRecord
+  (`active_record.cr`), embedded right into the client.
+
+Compilation to a single native binary is what makes this possible:
+the whole app — views, models and the database layer — ships as one
+executable that runs as a native desktop application — a whole new
+world for desktop apps.
+
+## Installation
+
+Install with [carat](https://github.com/crystal-carat/carat) package manager to get the binary:
+
+```sh
+carat install OrelSokolov/crails
+```
+
 ## The best performance in class
 
 Median RPS, official
