@@ -35,10 +35,6 @@ verbatim.
 
 - `CRails.application`, `CRails.env`, `CRails.root`, `CRails.logger` —
   as `Rails.*` was in Rails.
-- `ActiveRecord::Base`, `ActiveSupport::Concern`, `ActionController::Base`,
-  `ActionView::FormBuilder`, `ActionCable::Channel::Base`, `ActiveJob::Base`,
-  `ActiveStorage::Blob`, `ActionMailer::Base`, `ActionText`,
-  `ActionMailbox` — module names and API 1:1.
 - ERB → ECR (the only visible substitution — the language is different).
 - Commands: `crails` instead of `rails` (`crails new`, `crails server`,
   `crails generate`, `crails console`, `crails routes`,

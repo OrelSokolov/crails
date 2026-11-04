@@ -33,10 +33,6 @@
 
 - `CRails.application`, `CRails.env`, `CRails.root`, `CRails.logger` — так,
   как в Rails было `Rails.*`.
-- `ActiveRecord::Base`, `ActiveSupport::Concern`, `ActionController::Base`,
-  `ActionView::FormBuilder`, `ActionCable::Channel::Base`, `ActiveJob::Base`,
-  `ActiveStorage::Blob`, `ActionMailer::Base`, `ActionText`, `ActionMailbox` —
-  имена модулей и API 1:1.
 - ERB → ECR (единственная видимая замена, язык-то другой).
 - Команды: `crails` вместо `rails` (`crails new`, `crails server`,
   `crails generate`, `crails console`, `crails routes`, `crails db:migrate`).
