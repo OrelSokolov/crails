@@ -41,6 +41,7 @@ Install with [carat](https://github.com/crystal-carat/carat) package manager to 
 
 ```sh
 carat install OrelSokolov/crails
+crails new helloworld
 ```
 
 ## The best performance in class
