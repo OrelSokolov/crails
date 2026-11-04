@@ -7,7 +7,7 @@
 # (HTML green / JSON {"status","timestamp"}), 404 HTML page, tagged
 # text log lines. JSON log output and GET /metrics are CRails
 # extensions (Rails 8 ships no JSON formatter and no metrics endpoint
-# out of the box) — see ../PLAN.md "Deviations".
+# out of the box) — see ../plans/PLAN.md "Deviations".
 
 require "uuid"
 require "json"

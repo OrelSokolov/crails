@@ -19,7 +19,7 @@
 # remaining Rails entries (Sendfile, Executor, ServerTiming,
 # LocalCache, MethodOverride, RemoteIp, ConditionalGet, ETag,
 # TempfileReaper, propshaft/reloader/AR-specific) have no CRails
-# counterpart yet — see ../PLAN.md.
+# counterpart yet — see ../plans/PLAN.md.
 
 require "http/server/handler"
 

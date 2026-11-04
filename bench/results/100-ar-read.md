@@ -1,6 +1,6 @@
 # 100-ar-read — CRails vs Rails 8: `GET /posts/:id` (Iteration 2)
 
-Дата: 2026-10-02. План: `../../PLAN.md` (Iteration 2), `../PLAN.md` (100-ar-read).
+Дата: 2026-10-02. План: `../../plans/PLAN.md` (Iteration 2), `../PLAN.md` (100-ar-read).
 
 ## Окружение
 

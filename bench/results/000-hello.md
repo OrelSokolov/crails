@@ -1,6 +1,6 @@
 # 000-hello — CRails vs Rails 8: `GET /` (Iteration 0)
 
-Дата: 2026-10-02. План: `../../PLAN.md` (Iteration 0), `../PLAN.md` (000-hello).
+Дата: 2026-10-02. План: `../../plans/PLAN.md` (Iteration 0), `../PLAN.md` (000-hello).
 
 ## Окружение
 

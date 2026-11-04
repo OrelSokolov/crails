@@ -26,7 +26,7 @@ class ActionController::Base
 end
 
 # CRails — the `Rails` module equivalent (the `CRails` namespace is the
-# only intentional 1:1 difference, see ../PLAN.md).
+# only intentional 1:1 difference, see ../plans/PLAN.md).
 module CRails
   # Версия подтягивается из shard.yml при компиляции — единственный
   # источник правды, ручной копии для синхронизации нет. Пути привязаны

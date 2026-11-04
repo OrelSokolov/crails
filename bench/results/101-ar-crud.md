@@ -1,6 +1,6 @@
 # 101-ar-crud — CRails vs Rails 8: `POST /posts` (Iteration 2)
 
-Дата: 2026-10-02. План: `../../PLAN.md` (Iteration 2), `../PLAN.md` (write-сценарий).
+Дата: 2026-10-02. План: `../../plans/PLAN.md` (Iteration 2), `../PLAN.md` (write-сценарий).
 
 ## Окружение
 

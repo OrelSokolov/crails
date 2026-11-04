@@ -1,6 +1,6 @@
 # 300-full-page — CRails vs Rails 8: `GET /posts` (Iteration 3)
 
-Дата: 2026-10-02. План: `../../PLAN.md` (Iteration 3), `../PLAN.md`.
+Дата: 2026-10-02. План: `../../plans/PLAN.md` (Iteration 3), `../PLAN.md`.
 
 ## Сценарий
 
