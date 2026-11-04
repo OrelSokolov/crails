@@ -74,6 +74,7 @@ Optional layers (add to your app's `shard.yml` when needed):
 - [kiq.cr](https://github.com/OrelSokolov/kiq.cr) — Sidekiq-compatible jobs backend
 - [active_backup.cr](https://github.com/OrelSokolov/active_backup.cr) — database backups
 - [action_mcp.cr](https://github.com/OrelSokolov/action_mcp.cr) + [active_agent.cr](https://github.com/OrelSokolov/active_agent.cr) — MCP servers and AI agents
+- [serverx.cr](https://github.com/OrelSokolov/serverx.cr) — nginx-model zero-alloc HTTP server (buffer per connection, offset parser, master/workers via SO_REUSEPORT), compatible with any `HTTP::Handler`
 
 ## License
 
