@@ -1,0 +1,8 @@
+# crails_turbo bench app.
+name: crails_turbo
+version: 0.1.0
+crystal: ">= 1.21.0"
+dependencies:
+  turbo_cr:
+    github: OrelSokolov/turbo.cr
+    version: ~> 0.1.0

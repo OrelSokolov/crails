@@ -1,0 +1,8 @@
+# crails_sse bench app.
+name: crails_sse
+version: 0.1.0
+crystal: ">= 1.21.0"
+dependencies:
+  action_pack_cr:
+    github: OrelSokolov/action_pack.cr
+    version: ~> 0.2.0

@@ -86,6 +86,41 @@ latency is the connection queue. More workers/threads will raise RPS,
 but at the cost of a multiple in RAM (~100 MB per process vs. 11–17 MB
 for the entire CRails application).
 
+## Shards
+
+CRails is assembled from standalone shards, each living in its own repo
+under [github.com/OrelSokolov](https://github.com/OrelSokolov?tab=repositories):
+
+Base (resolved by the root `shard.yml`):
+
+- [active_support.cr](https://github.com/OrelSokolov/active_support.cr) — core utilities, Concern, inflections
+- [attr_reader.cr](https://github.com/OrelSokolov/attr_reader.cr) — Ruby-style `attr_reader` macros
+- [erb.cr](https://github.com/OrelSokolov/erb.cr) — ERB templating (ECR)
+- [action_view.cr](https://github.com/OrelSokolov/action_view.cr) — views, helpers, FormBuilder
+- [action_pack.cr](https://github.com/OrelSokolov/action_pack.cr) — controllers, routing, middleware
+- [importmap.cr](https://github.com/OrelSokolov/importmap.cr) — importmap-based JS assets
+- [propshaft.cr](https://github.com/OrelSokolov/propshaft.cr) — asset pipeline (+ [brotli.cr](https://github.com/OrelSokolov/brotli.cr) precompression)
+- [active_record.cr](https://github.com/OrelSokolov/active_record.cr) — ORM, migrations, adapters (db/pg/sqlite3)
+- [railties.cr](https://github.com/OrelSokolov/railties.cr) — the `crails` CLI, generators, app glue (lives in this repo at `railties.cr/`)
+- [icr.cr](https://github.com/OrelSokolov/icr.cr) — `crails console`
+- [project_watch.cr](https://github.com/OrelSokolov/project_watch.cr) — `crails watch`
+
+Optional layers (add to your app's `shard.yml` when needed):
+
+- [active_job.cr](https://github.com/OrelSokolov/active_job.cr) — background jobs
+- [action_cable.cr](https://github.com/OrelSokolov/action_cable.cr) — WebSockets
+- [action_mailer.cr](https://github.com/OrelSokolov/action_mailer.cr) — email
+- [action_mailbox.cr](https://github.com/OrelSokolov/action_mailbox.cr) — inbound email
+- [active_storage.cr](https://github.com/OrelSokolov/active_storage.cr) — file uploads
+- [action_text.cr](https://github.com/OrelSokolov/action_text.cr) — rich text
+- [action_bot.cr](https://github.com/OrelSokolov/action_bot.cr) — bots (webhooks + SSE)
+- [devise.cr](https://github.com/OrelSokolov/devise.cr) — authentication
+- [turbo.cr](https://github.com/OrelSokolov/turbo.cr) — Hotwire Turbo
+- [live_view.cr](https://github.com/OrelSokolov/live_view.cr) — LiveView-style reactive views
+- [kiq.cr](https://github.com/OrelSokolov/kiq.cr) — Sidekiq-compatible jobs backend
+- [active_backup.cr](https://github.com/OrelSokolov/active_backup.cr) — database backups
+- [action_mcp.cr](https://github.com/OrelSokolov/action_mcp.cr) + [active_agent.cr](https://github.com/OrelSokolov/active_agent.cr) — MCP servers and AI agents
+
 ## License
 
 MIT

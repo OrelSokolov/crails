@@ -1,0 +1,8 @@
+# crails_kiq bench app.
+name: crails_kiq
+version: 0.1.0
+crystal: ">= 1.21.0"
+dependencies:
+  kiq_cr:
+    github: OrelSokolov/kiq.cr
+    version: ~> 0.1.0

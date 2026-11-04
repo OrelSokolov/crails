@@ -2,3 +2,7 @@
 name: crails_jobs
 version: 0.1.0
 crystal: ">= 1.21.0"
+dependencies:
+  active_job_cr:
+    github: OrelSokolov/active_job.cr
+    version: ~> 0.1.0

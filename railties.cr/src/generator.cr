@@ -52,25 +52,25 @@ module CRails
         dirs.each { |d| FileUtils.mkdir_p(File.join(dir, d)) }
 
         # Framework shards are wired as lib/ symlinks into the monorepo.
-        # In a dev checkout the sources are sibling dirs (git submodules of
-        # the OrelSokolov/*.cr shard repos); a carat-installed monorepo
-        # (~/.carat/shards/crails/<ver>/) resolves the same shards into the
-        # root lib/ (prebuild: shards install of the crails shard) — its
-        # sibling submodules are absent. First existing source wins; shards
-        # treats duplicate path deps across the graph as ambiguous sources,
-        # so the app's shard.yml stays free of framework dependencies.
-        {"active_support_cr" => {"active_support.cr", "lib/active_support_cr"},
+        # The framework shards live in their own repos and resolve into the
+        # root lib/ (dev checkout: shards install of the crails shard;
+        # carat-installed monorepo ~/.carat/shards/crails/<ver>/: prebuild
+        # does the same). Only railties.cr/ and propshaft_cr/ are real dirs
+        # here. First existing source wins; shards treats duplicate path
+        # deps across the graph as ambiguous sources, so the app's
+        # shard.yml stays free of framework dependencies.
+        {"active_support_cr" => {"lib/active_support_cr"},
          "attr_reader_cr"    => {"railties.cr/lib/attr_reader_cr", "lib/attr_reader_cr"},
-         "erb_cr"            => {"erb.cr", "lib/erb_cr"},
-         "action_view_cr"    => {"action_view.cr", "lib/action_view_cr"},
-         "action_pack_cr"    => {"action_pack.cr", "lib/action_pack_cr"},
-         "active_record_cr"  => {"active_record.cr", "lib/active_record_cr"},
+         "erb_cr"            => {"lib/erb_cr"},
+         "action_view_cr"    => {"lib/action_view_cr"},
+         "action_pack_cr"    => {"lib/action_pack_cr"},
+         "active_record_cr"  => {"lib/active_record_cr"},
          "railties_cr"       => {"railties.cr"},
-         "importmap_cr"      => {"importmap.cr", "lib/importmap_cr"},
+         "importmap_cr"      => {"lib/importmap_cr"},
          "propshaft_cr"      => {"propshaft_cr", "lib/propshaft_cr"},
-         "db"                => {"active_record.cr/lib/db", "lib/db"},
-         "pg"                => {"active_record.cr/lib/pg", "lib/pg"},
-         "sqlite3"           => {"active_record.cr/lib/sqlite3", "lib/sqlite3"},
+         "db"                => {"lib/db"},
+         "pg"                => {"lib/pg"},
+         "sqlite3"           => {"lib/sqlite3"},
          "brotli"            => {"propshaft_cr/lib/brotli", "lib/brotli"}}.each do |name, candidates|
           target = File.join(dir, "lib", name)
           next if File.exists?(target)

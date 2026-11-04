@@ -1,13 +1,12 @@
-# --- shards vendor (локальные симлинки/checkout зависимостей) ---
+# --- shards vendor (lib/ от shards install) ---
 lib/
 
 # --- скомпилированные бинарники (скрипты в bin/ — коммитим) ---
 *.dwarf
 railties.cr/bin/crails
-active_record.cr/bin/ar_schema_dump
 hello_world/hello/bin/app
 .carat/
-/shard.lock
+shard.lock
 
 # --- секреты ---
 .env
@@ -17,13 +16,8 @@ hello_world/hello/bin/app
 # --- ОС/редакторы ---
 .DS_Store
 *.swp
-active_support.cr/oracle/errors.log
 
 # --- артефакты спек/бенчей (Iteration 3+) ---
-action_pack.cr/action_pack_cr
-action_view.cr/action_view_cr
-active_record.cr/active_record_cr
-active_support.cr/active_support_cr
 bench/rails_hello/tmp/
 hello_world/hello/tmp/
 railties.cr/tmp/

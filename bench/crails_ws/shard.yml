@@ -2,3 +2,7 @@
 name: crails_ws
 version: 0.1.0
 crystal: ">= 1.21.0"
+dependencies:
+  action_cable_cr:
+    github: OrelSokolov/action_cable.cr
+    version: ~> 0.1.0

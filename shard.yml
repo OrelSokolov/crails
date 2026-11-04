@@ -39,21 +39,6 @@ dependencies:
   erb_cr:
     github: OrelSokolov/erb.cr
     version: ~> 0.1.0
-  active_job_cr:
-    github: OrelSokolov/active_job.cr
-    version: ~> 0.1.0
-  action_cable_cr:
-    github: OrelSokolov/action_cable.cr
-    version: ~> 0.1.0
-  action_mailer_cr:
-    github: OrelSokolov/action_mailer.cr
-    version: ~> 0.1.0
-  action_mailbox_cr:
-    github: OrelSokolov/action_mailbox.cr
-    version: ~> 0.1.0
-  action_bot_cr:
-    github: OrelSokolov/action_bot.cr
-    version: ~> 0.1.0
   icr:
     github: OrelSokolov/icr.cr
   # crails watch — dev-loop file watcher (railties_cr dep; declared here
