@@ -4,17 +4,12 @@
   <img src="assets/icon.svg" width="200" alt="CRails — Clean Rails" />
 </p>
 
-> ⚠️ **EXPERIMENTAL FRAMEWORK, DO NOT USE IN PRODUCTION YET.**
-> This is an experiment. We are measuring performance and seeing what
-> we get at this point. No compatibility guarantees whatsoever.
-
-## Current status: a port of Ruby on Rails
-
-At this point CRails is simply a **port of Ruby on Rails to Crystal**.
-We are porting the framework in its current form: the framework itself,
-its spirit and the beauty of its code. The code is being ported from
-Rails one-to-one, so that refactoring can happen later — this is a
-draft, not even a first release.
+> **Current status: a port of Ruby on Rails.**
+> At this point CRails is simply a port of Ruby on Rails to Crystal.
+> We are porting the framework in its current form: the framework
+> itself, its spirit and the beauty of its code. The code is being
+> ported from Rails one-to-one, so that refactoring can happen later —
+> this is a draft, not even a first release.
 
 ## Philosophy
 
@@ -24,35 +19,11 @@ framework intends to keep — lives in **[IDEA.md](IDEA.md)**. It is
 effectively a roadmap and a promise for the future, not a description
 of what is already implemented.
 
-## What this is
+## The best performance in class
 
-A full clone of the Ruby on Rails API on Crystal, as 1:1 as possible in
-the end interface — so that a developer moving from Ruby/Rails feels no
-difference. Goal: Rails application code ports to Crystal nearly
-verbatim.
-
-**The only namespace difference: `CRails` instead of `Rails`.**
-
-- `CRails.application`, `CRails.env`, `CRails.root`, `CRails.logger` —
-  as `Rails.*` was in Rails.
-- ERB → ECR (the only visible substitution — the language is different).
-- Commands: `crails` instead of `rails` (`crails new`, `crails server`,
-  `crails generate`, `crails console`, `crails routes`,
-  `crails db:migrate`).
-
-## Performance: ONCE Campfire port, official verification harness
-
-A full port of ONCE Campfire to CRails —
-[once-campfire-crails](https://github.com/OrelSokolov/once-campfire-crails) —
-measured with the official
+Median RPS, official
 [once-campfire-verification](https://github.com/basecamp/once-campfire-verification)
-harness: median RPS of 3 rounds × 16 concurrent clients, seed database,
-every response validated against the route contract. CRails is #1 on
-every measured GET route on both stands, C and Elixir included.
-
-AMD Ryzen 9 3900X stand (12 cores / 24 threads; server pinned to 4
-hardware threads, load generator on separate cores; same seed database
-and methodology for all seven apps):
+harness, AMD Ryzen 9 3900X stand:
 
 | Route | Rails | Express | Go | Rust | C | Elixir | CRails |
 |---|---|---|---|---|---|---|---|
@@ -65,15 +36,11 @@ and methodology for all seven apps):
 | /up | 2 571 | 20 531 | 29 238 | 36 557 | 62 890 | 4 230 | **82 265** |
 | post_message | 166 | 1 015 | 2 442 | 2 935 | 1 303 | 556 | 2 033 |
 
-The post_message row is not equivalent across apps: Express and CRails
-persist every notification job into the leased-SQLite queue before
-responding, while Rust and Go run jobs in in-memory queues that lose
-work on a crash — that durability guarantee costs RPS on this route.
-Full methodology, the laptop-stand results and the per-implementation
-architecture breakdown (transport, caches, DB layer):
-[once-campfire-crails README](https://github.com/OrelSokolov/once-campfire-crails#benchmark-results).
+Beats Rust in some cases, but with beautiful code and the MVC pattern —
+see more at the
+[original repository](https://github.com/OrelSokolov/once-campfire-crails).
 
-## Shards
+## Ecosystem
 
 CRails is assembled from standalone shards, each living in its own repo
 under [github.com/OrelSokolov](https://github.com/OrelSokolov?tab=repositories):
@@ -111,3 +78,19 @@ Optional layers (add to your app's `shard.yml` when needed):
 ## License
 
 MIT
+
+## What this is
+
+A full clone of the Ruby on Rails API on Crystal, as 1:1 as possible in
+the end interface — so that a developer moving from Ruby/Rails feels no
+difference. Goal: Rails application code ports to Crystal nearly
+verbatim.
+
+**The only namespace difference: `CRails` instead of `Rails`.**
+
+- `CRails.application`, `CRails.env`, `CRails.root`, `CRails.logger` —
+  as `Rails.*` was in Rails.
+- ERB → ECR (the only visible substitution — the language is different).
+- Commands: `crails` instead of `rails` (`crails new`, `crails server`,
+  `crails generate`, `crails console`, `crails routes`,
+  `crails db:migrate`).
