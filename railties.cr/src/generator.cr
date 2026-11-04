@@ -52,13 +52,13 @@ module CRails
         dirs.each { |d| FileUtils.mkdir_p(File.join(dir, d)) }
 
         # Framework shards are wired as lib/ symlinks into the monorepo.
-        # In a dev checkout the sources are sibling dirs (railties.cr is
-        # real, the rest are myshards symlinks); a carat-installed monorepo
+        # In a dev checkout the sources are sibling dirs (git submodules of
+        # the OrelSokolov/*.cr shard repos); a carat-installed monorepo
         # (~/.carat/shards/crails/<ver>/) resolves the same shards into the
         # root lib/ (prebuild: shards install of the crails shard) — its
-        # sibling symlinks dangle. First existing source wins; shards treats
-        # duplicate path deps across the graph as ambiguous sources, so the
-        # app's shard.yml stays free of framework dependencies.
+        # sibling submodules are absent. First existing source wins; shards
+        # treats duplicate path deps across the graph as ambiguous sources,
+        # so the app's shard.yml stays free of framework dependencies.
         {"active_support_cr" => {"active_support.cr", "lib/active_support_cr"},
          "attr_reader_cr"    => {"railties.cr/lib/attr_reader_cr", "lib/attr_reader_cr"},
          "erb_cr"            => {"erb.cr", "lib/erb_cr"},
