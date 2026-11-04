@@ -1,40 +1,37 @@
 # CRails monorepo build.
 #
 #   rake            # build everything (default): shard deps, crails CLI,
-#                   # shard binaries, demo app server binary
+#                   # demo app server binary
 #   rake build:cli  # railties.cr/bin/crails only
-#   rake build:app  # hello_world/hello/bin/app only
-#   rake spec       # all shard test suites
+#   rake build:app  # examples/hello_world/hello/bin/app only
+#   rake spec       # shard test suites (railties, propshaft)
 #
 # Run the app:  ./bin/server   |  ./bin/console
+#
+# Framework shards live in their own OrelSokolov/*.cr repos and resolve
+# from GitHub tags via shard.yml; only railties.cr/ and propshaft_cr/
+# are developed here.
 
 ROOT = File.expand_path(__dir__)
-APP  = File.join(ROOT, "hello_world", "hello")
+APP  = File.join(ROOT, "examples", "hello_world", "hello")
 
 SHARDS = %w[
-  active_support.cr
-  action_view.cr
-  action_pack.cr
-  active_record.cr
-  active_agent.cr
-  active_backup.cr
-  action_bot.cr
-  kiq.cr
   railties.cr
+  propshaft_cr
 ]
 
 task default: :build
 
-desc "Build everything: deps, crails CLI, shard binaries, demo app"
-task build: %i[deps build:cli build:app build:kiq]
+desc "Build everything: deps, crails CLI, demo app"
+task build: %i[deps build:cli build:app]
 
 desc "Install shard dependencies (idempotent)"
 task :deps do
-  SHARDS.each do |shard|
-    Dir.chdir(File.join(ROOT, shard)) do
+  ([ROOT] + SHARDS.map { |s| File.join(ROOT, s) }).each do |dir|
+    Dir.chdir(dir) do
       next unless File.exist?("shard.yml")
       sh "shards install" do |ok, _res|
-        raise "shards install failed in #{shard}" unless ok || Dir.exist?("lib")
+        raise "shards install failed in #{dir}" unless ok || Dir.exist?("lib")
       end
     end
   end
@@ -47,17 +44,10 @@ task :"build:cli" do
   end
 end
 
-desc "Build the demo app server (hello_world/hello/bin/app)"
+desc "Build the demo app server (examples/hello_world/hello/bin/app)"
 task :"build:app" do
   Dir.chdir(APP) do
     sh "crystal build src/app.cr -o bin/app"
-  end
-end
-
-desc "Build the kiq worker CLI (kiq.cr/bin/kiq)"
-task :"build:kiq" do
-  Dir.chdir(File.join(ROOT, "kiq.cr")) do
-    sh "shards build kiq"
   end
 end
 
@@ -66,17 +56,7 @@ task :spec do
   SHARDS.each do |shard|
     Dir.chdir(File.join(ROOT, shard)) do
       puts "==> #{shard}"
-      if shard == "action_pack.cr"
-        sh "make spec"
-      elsif shard == "active_record.cr"
-        sh "crystal spec"
-        # SQLite adapter oracle suite: own compile-time schema fixture
-        # (CRAILS_SCHEMA is per-compilation; PG suites use db/schema.yml)
-        sh({"CRAILS_SCHEMA" => "spec/fixtures/sqlite_schema.yml"},
-           "crystal spec spec/sqlite_oracle_spec.cr")
-      else
-        sh "crystal spec"
-      end
+      sh "crystal spec"
     end
   end
 end

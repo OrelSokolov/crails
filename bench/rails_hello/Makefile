@@ -1,5 +1,5 @@
 # rails_hello reference (Rails 8.1.1) — oracle targets, called from
-# ../../rails_hello/Makefile.
+# ../../examples/rails_hello/Makefile.
 PORT ?= 3100
 
 .PHONY: oracle-seed oracle-serve
