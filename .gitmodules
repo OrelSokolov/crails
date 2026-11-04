@@ -1,0 +1,4 @@
+[submodule "examples"]
+	path = examples
+	url = git@github.com:OrelSokolov/crails-examples.git
+	branch = master
