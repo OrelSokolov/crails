@@ -41,23 +41,7 @@
 - Команды: `crails` вместо `rails` (`crails new`, `crails server`,
   `crails generate`, `crails console`, `crails routes`, `crails db:migrate`).
 
-## Зачем
-
-Эксперимент для замера **монолитной архитектуры Rails MVC на Crystal**:
-
-- сколько пользователей (RPS, одновременных соединений) выдержит монолит;
-- сколько джобов в секунду выполнит (ActiveJob-совместимый воркер);
-- сколько вебсокетов сможет держать (ActionCable-совместимый сервер);
-- сколько при этом съест памяти, как быстро стартует.
-
-Возможно это «новый король стартапов», а возможно «полный провал» —
-узнаем цифрами, не эмоциями. Бенчмарки: `bench/`.
-
-Исследование переносимости API (по реальному коду Rails 8.2): ~85–90%
-ежедневного API переносится с ощущением 1:1 — полный отчёт:
-`/home/oleg/egui.cr/plans/crails-api-research.md`.
-
-### Производительность: порт ONCE Campfire, официальный verification-harness
+## Производительность: порт ONCE Campfire, официальный verification-harness
 
 Полный порт ONCE Campfire на CRails —
 [once-campfire-crails](https://github.com/OrelSokolov/once-campfire-crails) —

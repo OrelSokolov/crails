@@ -44,25 +44,7 @@ verbatim.
   `crails generate`, `crails console`, `crails routes`,
   `crails db:migrate`).
 
-## Why
-
-An experiment to measure a **monolithic Rails MVC architecture on
-Crystal**:
-
-- how many users (RPS, concurrent connections) the monolith will
-  withstand;
-- how many jobs per second it will run (an ActiveJob-compatible worker);
-- how many websockets it can hold (an ActionCable-compatible server);
-- how much memory it eats in the process, how fast it starts.
-
-Maybe it's "the new king of startups", maybe it's "a complete failure" —
-we'll find out with numbers, not emotions. Benchmarks: `bench/`.
-
-An API portability study (against real Rails 8.2 code): ~85–90% of
-daily-use API ports with a 1:1 feel — full report:
-`/home/oleg/egui.cr/plans/crails-api-research.md`.
-
-### Performance: ONCE Campfire port, official verification harness
+## Performance: ONCE Campfire port, official verification harness
 
 A full port of ONCE Campfire to CRails —
 [once-campfire-crails](https://github.com/OrelSokolov/once-campfire-crails) —
