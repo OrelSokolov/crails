@@ -464,6 +464,50 @@ P2 Iteration 13. Quirk'и гема сохранены (glob без `.mjs`, кэ�
       copy-with-hash вынесен в метод). Отклонения: symlink/PAX — P2,
       инкрементальные/шифрование — P2, crails backup:* CLI — P1.
       Детали: active_backup.cr/PLAN.md
+- [~] **Iteration 21** — active_torrent.cr: p2p-раздача больших файлов
+      (дифференциатор, не порт гема). Вынесен в отдельный репо
+      `OrelSokolov/active_torrent.cr` — **v0.1.0 опубликован (MVP:
+      фазы 0–1)**; дизайн-доки и план (ActiveTorrentDescription.md /
+      ActiveTorrentCodeStyle.md / TorrentApp.md / PLAN.md) живут в
+      репо шарда, демо — crails-examples/examples/torrent_demo.
+      **Фаза 0 готова (2026-11-03)**: bencode-кодек BEP 3 (BEncode::Any,
+      сортировка ключей, binary→Bytes), потоковые SHA-1 piece-хэши,
+      metainfo build/parse/magnet (info_hash инвариантен к announce/
+      url-list — .torrent собирается из метаданных БД), модель Torrent
+      (ar_enum source_type/status, publish_blob! / publish_metainfo! /
+      seedbox_origin без файла на сервере), подписанные metainfo-токены
+      (MessageVerifier url_safe, purpose "torrent_metainfo"), макрос
+      has_torrent, opt-in controllers.cr (`.torrent` 200/404/410,
+      JSON-статус с 503-контрактом доступности, webseed-хук
+      webseed_builder). Oracle-first по AGENTS.md: 39 кейсов (gem
+      bencode 0.8.0 + настоящая фикстура leaves.torrent uTorrent +
+      ruby Digest::SHA1 — полный .torrent байт-в-байт; transmission-
+      create в окружении нет, E2E с transmission — фаза 1), зеркало
+      8/8 + юниты 8/8 (sqlite, 16/16 сюита). Демо examples/torrent_demo
+      (полный стек, PG, webseed-FilesController): e2e 2/2 +
+      live-смоук — .torrent валиден эталонным декодером, webseed-байты
+      проходят все piece-хэши, retire → 410. Отклонения: pieces —
+      hex-текст (не bytea), декодер строже гема, webseed-URL задаёт
+      приложение. **Фаза 1 готова (2026-11-04)**: приватный HTTP-трекер
+      (BEP 3/23-compact: announce-токены purpose "torrent_announce",
+      peer-таблица с TTL 3×interval, seed_stats, события started/
+      stopped/completed), события torrent.created/updated/retired/
+      health (in-process шина + ring-буфер, SSE-реконнект по
+      Last-Event-ID), seeder-режимы webseed (passive при рое ≥K сидов
+      — url-list из metainfo пропадает, last-resort при деградации;
+      контракт доступности available?/503 для seedbox_origin),
+      снимок /torrents/public?since= (Bearer seedbox-токен, курсор
+      updated_at) + SSE /torrents/events (ActionController::Live).
+      Спеки: tracker/events (сюита 31/31), announce-фикстуры BEP 3/23
+      в oracle; демо — e2e 3/3 + live-смоук curl (анонс compact
+      peer-list, снимок 200/401 + курсор, SSE replay + live
+      torrent.retired, retire → 410 везде). Transmission в окружении
+      нет — ручная инструкция в README демо. Отклонения фазы 1:
+      события in-process (несколько воркеров — pubsub фаза 2+),
+      seedbox-токены списком в конфиге, uploaded/downloaded не
+      учитываются (фаза 2). Фазы 2–4 (wire-протокол, super-seed,
+      seedbox-бинарь, seedbox_origin publish) — TorrentApp.md шарда.
+      Детали: OrelSokolov/active_torrent.cr → PLAN.md
 
 ## Backlog идей — Clean Rails / дядя Боб (вклеивать по мере итераций)
 
